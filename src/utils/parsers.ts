@@ -104,7 +104,7 @@ async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
 
   // Attempt 1: Modern class-based pdf-parse (v2.x)
   try {
-    const pdfParseModule = await import('pdf-parse');
+    const pdfParseModule = (await import('pdf-parse')) as any;
 
     if (pdfParseModule && typeof pdfParseModule.PDFParse === 'function') {
       const parser = new pdfParseModule.PDFParse({ data: uint8Data });
