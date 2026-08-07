@@ -150,7 +150,7 @@ async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
     console.log('Attempting pdf2json fallback...');
     const PDFParser = (await import('pdf2json')).default;
     const data = await new Promise<string>((resolve, reject) => {
-      const pdfParser = new PDFParser(null, 1); // 1 = text mode
+      const pdfParser = new PDFParser(null, true as any); // true = text mode
       
       pdfParser.on('pdfParser_dataError', (errData: any) => {
         reject(new Error(errData.parserError));
