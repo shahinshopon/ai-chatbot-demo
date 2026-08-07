@@ -88,34 +88,34 @@ async function parseDocx(buffer: Buffer): Promise<ParsedDocument> {
 }
 
 /**
- * Parses PDF files using pdf-parse.
+ * Parses PDF files using pdf-parse with fallback to pure text stream parser.
  */
 async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
+  const errors: string[] = [];
+
+  // 1. Polyfill missing DOM variables globally on Node server-side
+  if (typeof global !== 'undefined') {
+    if (!(global as any).DOMMatrix) (global as any).DOMMatrix = class DOMMatrix {};
+    if (!(global as any).ImageData) (global as any).ImageData = class ImageData {};
+    if (!(global as any).Path2D) (global as any).Path2D = class Path2D {};
+  }
+
+  const uint8Data = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+
+  // Attempt 1: Modern class-based pdf-parse (v2.x)
   try {
-    // Polyfill missing DOM variables globally on Node server-side to satisfy older pdfjs-dist dependencies
-    if (typeof global !== 'undefined') {
-      if (!(global as any).DOMMatrix) {
-        (global as any).DOMMatrix = class DOMMatrix {};
-      }
-      if (!(global as any).ImageData) {
-        (global as any).ImageData = class ImageData {};
-      }
-      if (!(global as any).Path2D) {
-        (global as any).Path2D = class Path2D {};
-      }
-    }
+    const pdfParseModule = await import('pdf-parse');
 
-    const pdfParseModule = require('pdf-parse');
-
-    // 1. Support modern class-based pdf-parse (v2.x+ by Mehmet Kozan)
     if (pdfParseModule && typeof pdfParseModule.PDFParse === 'function') {
-      const parser = new pdfParseModule.PDFParse({ data: buffer });
+      const parser = new pdfParseModule.PDFParse({ data: uint8Data });
       try {
         const data = await parser.getText();
-        return {
-          text: data.text || '',
-          pageCount: data.total || 1,
-        };
+        if (data && data.text && data.text.trim().length > 0) {
+          return {
+            text: data.text,
+            pageCount: data.total || 1,
+          };
+        }
       } finally {
         if (parser && typeof parser.destroy === 'function') {
           await parser.destroy();
@@ -123,25 +123,122 @@ async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
       }
     }
 
-    // 2. Support legacy function-based pdf-parse (v1.x)
+    // Attempt 2: Legacy function-based pdf-parse (v1.x)
     let pdfParseFn;
     if (pdfParseModule && typeof pdfParseModule.default === 'function') {
       pdfParseFn = pdfParseModule.default;
     } else if (typeof pdfParseModule === 'function') {
       pdfParseFn = pdfParseModule;
-    } else {
-      throw new Error('PDF parsing library was loaded but no callable parser function or PDFParse class was found.');
     }
 
-    const data = await pdfParseFn(buffer);
-    return {
-      text: data.text || '',
-      pageCount: data.numpages || 1,
-    };
-  } catch (error) {
-    console.error('Error parsing PDF document:', error);
-    throw new Error('Failed to parse PDF document. Ensure the file is not corrupted.');
+    if (pdfParseFn) {
+      const data = await pdfParseFn(buffer);
+      if (data && data.text && data.text.trim().length > 0) {
+        return {
+          text: data.text,
+          pageCount: data.numpages || 1,
+        };
+      }
+    }
+  } catch (error: any) {
+    console.warn('Primary pdf-parse engine failed:', error?.message);
+    errors.push(error?.message || String(error));
   }
+
+  // Attempt 3: pdf2json (Pure JS, Vercel safe fallback)
+  try {
+    console.log('Attempting pdf2json fallback...');
+    const PDFParser = (await import('pdf2json')).default;
+    const data = await new Promise<string>((resolve, reject) => {
+      const pdfParser = new PDFParser(null, 1); // 1 = text mode
+      
+      pdfParser.on('pdfParser_dataError', (errData: any) => {
+        reject(new Error(errData.parserError));
+      });
+      
+      pdfParser.on('pdfParser_dataReady', () => {
+        resolve(pdfParser.getRawTextContent());
+      });
+      
+      pdfParser.parseBuffer(buffer);
+    });
+
+    if (data && data.trim().length > 0) {
+      return {
+        text: data.replace(/%20/g, ' ').replace(/%2C/g, ',').replace(/%3A/g, ':'), // Basic decoding if needed
+        pageCount: 1, // Simple approximation
+      };
+    }
+  } catch (pdf2jsonError: any) {
+    console.warn('pdf2json fallback failed:', pdf2jsonError?.message);
+    errors.push(pdf2jsonError?.message || String(pdf2jsonError));
+  }
+
+  // Attempt 4: Pure JavaScript raw PDF text stream extractor fallback (Zero native C++/Worker dependency)
+  try {
+    const rawText = extractRawPdfText(buffer);
+    if (rawText && rawText.trim().length > 0) {
+      console.log('Successfully extracted PDF text using raw stream fallback.');
+      return {
+        text: rawText,
+        pageCount: 1,
+      };
+    }
+  } catch (fallbackError: any) {
+    errors.push(fallbackError?.message || String(fallbackError));
+  }
+
+  throw new Error(
+    `Failed to parse PDF document (${errors.join(' | ') || 'Document contains no extractable text or is image-only'}). Ensure the file is not corrupted.`
+  );
+}
+
+/**
+ * Pure JavaScript fallback parser that extracts readable text from raw PDF streams without external dependencies.
+ */
+function extractRawPdfText(buffer: Buffer): string {
+  const content = buffer.toString('latin1');
+  const textParts: string[] = [];
+
+  // Match (string) Tj, (string) TJ, or [(string1) ... (string2)] TJ text operators
+  const tjRegex = /\(([^)\\]*(?:\\.[^)\\]*)*)\)\s*(?:Tj|TJ|\/)|\[\s*(?:\(([^)\\]*(?:\\.[^)\\]*)*)\)[^)]*)+\s*\]\s*TJ/g;
+  let match;
+
+  while ((match = tjRegex.exec(content)) !== null) {
+    const rawStr = match[1] || match[2];
+    if (rawStr) {
+      const unescaped = rawStr
+        .replace(/\\([()\\])/g, '$1')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
+
+      const cleaned = unescaped.trim();
+      if (cleaned.length > 0) {
+        textParts.push(cleaned);
+      }
+    }
+  }
+
+  // Second pass: Extract text blocks inside BT ... ET if operator parsing returned little text
+  if (textParts.join(' ').length < 10) {
+    const btRegex = /BT[\s\S]*?ET/g;
+    let btMatch;
+    while ((btMatch = btRegex.exec(content)) !== null) {
+      const block = btMatch[0];
+      const strRegex = /\(([^)\\]*(?:\\.[^)\\]*)*)\)/g;
+      let strMatch;
+      while ((strMatch = strRegex.exec(block)) !== null) {
+        const text = strMatch[1].replace(/\\([()\\])/g, '$1').trim();
+        if (text.length > 0 && /[a-zA-Z0-9\u0980-\u09FF]/.test(text)) {
+          textParts.push(text);
+        }
+      }
+    }
+  }
+
+  return textParts.join(' ');
 }
 
 /**
