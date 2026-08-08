@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ text: 'Mock transcription', language: 'en' });
     }
     // Convert Blob to File if necessary
-    const audioFile = file instanceof File ? file : new File([file], 'voice.webm', { type: file.type });
+    const audioFile = file instanceof File ? file : new File([file], 'voice.webm');
     const transcription = await openai.audio.transcriptions.create({
       model: 'whisper-1',
       file: audioFile,
