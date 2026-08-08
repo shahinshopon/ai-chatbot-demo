@@ -4,9 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
-  experimental: {
-    turbopack: false,
-  },
+
 };
 
 export default nextConfig;
