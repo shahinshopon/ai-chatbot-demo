@@ -22,7 +22,9 @@ import {
   MessageSquare,
   ExternalLink,
   ShoppingBag,
-  Camera
+  Camera,
+  Mic,
+  StopCircle
 } from 'lucide-react';
 import { getAnonymousUser, isFirebaseConfigured } from '@/utils/firebase';
 import { isSupabaseConfigured } from '@/utils/supabase';
@@ -145,7 +147,7 @@ export default function Home() {
   // State variables
   const [userUid, setUserUid] = useState<string>('');
   const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'bn'>('en');
+
   const [files, setFiles] = useState<FileItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -161,6 +163,13 @@ export default function Home() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // New recording state
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  // Optional state for detected language badge
+  const [detectedLang, setDetectedLang] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -546,7 +555,6 @@ export default function Home() {
           message: finalQuery,
           user_uid: userUid,
           image_url: imgToSend || undefined,
-          language: selectedLanguage,
         }),
       });
 
@@ -580,6 +588,47 @@ export default function Home() {
     navigator.clipboard.writeText(text);
     setCopiedId(msgId);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // Voice recording start
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'voice.webm');
+        // Send to backend for transcription
+        try {
+          const res = await fetch('/api/voice', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.text) {
+            setInputMessage(data.text);
+            setDetectedLang(data.language || null);
+          }
+        } catch (err) {
+          console.error('Voice transcription error:', err);
+        }
+      };
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Unable to access microphone:', err);
+    }
+  };
+
+  // Voice recording stop
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
   };
 
   // Pre-process byte sizes for premium look
@@ -624,9 +673,9 @@ export default function Home() {
   };
 
   const suggestedQuestions = [
-    "Do you have red running shoes in stock?",
-    "Can you summarize our pricing structure?",
-    "How can I contact technical support?"
+    "What do you offer?",
+  "How much do your products or services cost?",
+  "How can I get in touch with you?"
   ];
 
   return (
@@ -637,7 +686,7 @@ export default function Home() {
       <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[500px] h-[500px] rounded-full bg-blue-600/10 floating-glow animate-pulse-glow" style={{ animationDelay: '-4s' }} />
 
       {/* Floating Simulation Mode alert banner */}
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {isSimulatedMode && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
@@ -652,7 +701,7 @@ export default function Home() {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       {/* Premium Header */}
       <header className="border-b border-slate-900/80 bg-slate-950/60 backdrop-blur-md relative z-10 py-4 px-6 md:px-12 flex justify-between items-center">
@@ -828,40 +877,27 @@ export default function Home() {
         </section>
 
         {/* Right column: High-fidelity Chat Interface (7 columns) */}
-        <section className="lg:col-span-7 flex flex-col bg-slate-950/40 border border-slate-900/60 rounded-3xl h-[600px] md:h-[680px] overflow-hidden backdrop-blur-md shadow-2xl relative">
+        <section className="lg:col-span-7 flex flex-col bg-slate-950/40 border border-slate-900/60 rounded-3xl min-h-[400px] md:min-h-[600px] overflow-hidden backdrop-blur-md shadow-2xl relative">
           
           {/* Active Chat Header */}
           <div className="px-6 py-4.5 border-b border-slate-900/80 bg-slate-950/60 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse" />
               <div>
-                <h3 className="text-white font-bold text-sm">Isolated Agent</h3>
-                <p className="text-[10px] text-slate-500">Replies strictly from your {files.filter(f => f.status === 'ready').length} documents</p>
+                <h3 className="text-white font-bold text-sm">AI Agent</h3>
+                {/* <p className="text-[10px] text-slate-500">Replies strictly from your {files.filter(f => f.status === 'ready').length} documents</p> */}
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
-              {/* Premium Glassmorphic Language Selector */}
-              <div className="relative inline-flex items-center gap-1.5 bg-slate-900/60 border border-slate-800/80 px-2.5 py-1 rounded-xl shadow-lg shadow-black/10 hover:border-violet-500/30 transition-all duration-300">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider select-none">Language:</span>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value as 'en' | 'bn')}
-                  className="bg-transparent text-[10px] font-bold text-violet-300 outline-none cursor-pointer pr-1 hover:text-violet-200 transition-colors select-none"
-                >
-                  <option value="en" className="bg-slate-950 text-white font-semibold">English (EN)</option>
-                  <option value="bn" className="bg-slate-950 text-white font-semibold">বাংলা (BN)</option>
-                </select>
-              </div>
-
+            {/* <div className="flex items-center gap-3">
               <span className="text-[10px] font-mono bg-indigo-950/40 border border-indigo-900/30 text-indigo-400 px-2.5 py-1 rounded-md">
                 GPT-4o-mini
               </span>
-            </div>
+            </div> */}
           </div>
 
           {/* Message List Panel */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar">
             
             <AnimatePresence>
               {messages.map((msg) => (
@@ -951,7 +987,7 @@ export default function Home() {
           </div>
 
           {/* Quick Suggested Questions & Prompt input Footer */}
-          <div className="p-5 border-t border-slate-900 bg-slate-950/60 flex-shrink-0 space-y-4">
+          <div className="p-5 border-t border-slate-900 bg-slate-950/60 flex-shrink-0 space-y-2">
             
             {/* Suggested Questions Bubble cards */}
             {messages.length === 1 && (
@@ -1000,17 +1036,33 @@ export default function Home() {
              />
 
              {/* Prompt input field */}
-             <form onSubmit={handleSendMessage} className="relative flex items-center">
+             <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(undefined, inputMessage); }} className="relative flex items-center">
                {/* Camera attachment button on the left */}
                <button
                  type="button"
                  onClick={() => chatImageInputRef.current?.click()}
                  disabled={isTyping}
-                 className="absolute left-3 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all z-10"
+                 className="absolute left-3 sm:left-3 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all z-10"
                  title="Attach product image"
                >
                  <Camera className="w-4 h-4" />
                </button>
+
+               {/* Voice recording button */}
+               <button
+                 type="button"
+                 onClick={isRecording ? stopRecording : startRecording}
+                 disabled={isTyping}
+                 className="absolute left-10 sm:left-12 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all z-10"
+                 title={isRecording ? 'Stop Recording' : 'Start Voice Recording'}
+               >
+                 {isRecording ? <StopCircle className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+               </button>
+
+               {/* Detected language badge */}
+               {detectedLang && (
+                 <span className="absolute left-10 sm:left-20 top-2.5 text-[10px] text-slate-400 bg-slate-800/50 px-1.5 rounded uppercase">{detectedLang}</span>
+               )}
 
                <input
                  type="text"
@@ -1022,7 +1074,7 @@ export default function Home() {
                      : "Upload some files above to query your knowledge base..."
                  }
                  disabled={isTyping}
-                 className="w-full glass-input text-sm text-white pl-12 pr-14 py-3.5 rounded-2xl outline-none transition-all placeholder-slate-500"
+                 className="w-full glass-input text-sm text-white pl-18 sm:pl-22 pr-14 py-3.5 rounded-2xl outline-none transition-all placeholder-slate-500"
                />
                <button
                  type="submit"

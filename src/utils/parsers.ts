@@ -377,13 +377,20 @@ async function parseJson(buffer: Buffer): Promise<ParsedDocument> {
     throw new Error('JSON format is invalid. Ensure the file contains an array of items/products or an object with a "products", "items", "dishes", or "menu" list.');
   }
 
+  if (items.length === 0) {
+    return { text: content, pageCount: 1, products: [] };
+  }
+
   const products: ParsedProduct[] = [];
   let summaryText = '';
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const name = item.name || item.title || '';
-    if (!name) continue;
+    // Determine product name with tolerant fallback; always produce a name
+    const name = item.name || item.title || item.product_name || item.label || `Product-${i}`;
+    if (!name) {
+      console.warn(`Skipping product at index ${i} due to missing name field.`, item);
+    }
 
     const sku = item.sku || item.id || `SKU-${1000 + i}`;
     const price = parseFloat(String(item.price || item.cost || 0).replace(/[^0-9.]/g, '')) || 0;
