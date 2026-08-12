@@ -679,11 +679,11 @@ export default function Home() {
   ];
 
   return (
-    <div className="flex-1 bg-grid-pattern relative flex flex-col justify-between">
+    <div className="flex-1 bg-grid-pattern relative flex flex-col justify-between overflow-x-hidden w-full max-w-full">
       
       {/* Background radial glowing effects */}
-      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-violet-600/10 floating-glow animate-pulse-glow" />
-      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[500px] h-[500px] rounded-full bg-blue-600/10 floating-glow animate-pulse-glow" style={{ animationDelay: '-4s' }} />
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] max-w-full rounded-full bg-violet-600/10 floating-glow animate-pulse-glow" />
+      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[500px] h-[500px] max-w-full rounded-full bg-blue-600/10 floating-glow animate-pulse-glow" style={{ animationDelay: '-4s' }} />
 
       {/* Floating Simulation Mode alert banner */}
       {/* <AnimatePresence>
@@ -704,10 +704,10 @@ export default function Home() {
       </AnimatePresence> */}
 
       {/* Premium Header */}
-      <header className="border-b border-slate-900/80 bg-slate-950/60 backdrop-blur-md relative z-10 py-4 px-6 md:px-12 flex justify-between items-center">
+      <header className="border-b border-slate-900/80 bg-slate-950/60 backdrop-blur-md relative z-10 py-4 px-6 md:px-12 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-tr from-violet-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-violet-900/30">
-            <Sparkles className="w-5 h-5 text-white animate-pulse" />
+          <div className="flex items-center justify-center bg-transparent">
+            <img src="/logo.jpg" alt="Logo" className="w-8 h-12 object-contain rounded-full shadow-sm shadow-slate-900/50" />
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
@@ -727,7 +727,7 @@ export default function Home() {
       </header>
 
       {/* Main SaaS Layout */}
-      <main className="max-w-8xl w-full mx-auto px-6 md:px-12 py-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
+      <main className="w-full max-w-7xl mx-auto px-2 sm:px-6 md:px-12 py-6 md:py-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 relative z-10">
         
         {/* Left column: SaaS pitch & Upload Area (5 columns) */}
         <section className="lg:col-span-5 flex flex-col justify-between gap-8 h-full">
@@ -747,7 +747,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1] text-white"
+              className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1] text-white break-words"
             >
               Chat With Your <br />
               <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-indigo-400 bg-clip-text text-transparent">
@@ -826,7 +826,7 @@ export default function Home() {
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       <div className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 group-hover:text-indigo-400 transition-colors flex-shrink-0">
-                        <FileText className="w-4.5 h-4.5" />
+                        <FileText className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h4 className="text-slate-200 text-xs font-semibold truncate pr-2" title={file.name}>
@@ -880,7 +880,7 @@ export default function Home() {
         <section className="lg:col-span-7 flex flex-col bg-slate-950/40 border border-slate-900/60 rounded-3xl min-h-[400px] md:min-h-[600px] overflow-hidden backdrop-blur-md shadow-2xl relative">
           
           {/* Active Chat Header */}
-          <div className="px-6 py-4.5 border-b border-slate-900/80 bg-slate-950/60 flex items-center justify-between flex-shrink-0">
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-slate-900/80 bg-slate-950/60 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse" />
               <div>
@@ -897,7 +897,7 @@ export default function Home() {
           </div>
 
           {/* Message List Panel */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar">
+          <div className="flex-1 overflow-y-auto p-2 md:p-6 space-y-4 scrollbar">
             
             <AnimatePresence>
               {messages.map((msg) => (
@@ -987,7 +987,7 @@ export default function Home() {
           </div>
 
           {/* Quick Suggested Questions & Prompt input Footer */}
-          <div className="p-5 border-t border-slate-900 bg-slate-950/60 flex-shrink-0 space-y-2">
+          <div className="p-2 md:p-5 border-t border-slate-900 bg-slate-950/60 flex-shrink-0 space-y-2">
             
             {/* Suggested Questions Bubble cards */}
             {messages.length === 1 && (
@@ -1061,7 +1061,7 @@ export default function Home() {
 
                {/* Detected language badge */}
                {detectedLang && (
-                 <span className="absolute left-10 sm:left-20 top-2.5 text-[10px] text-slate-400 bg-slate-800/50 px-1.5 rounded uppercase">{detectedLang}</span>
+                 <span className="absolute left-[88px] sm:left-[96px] top-[14px] text-[10px] text-slate-400 bg-slate-800/50 px-1.5 rounded uppercase">{detectedLang}</span>
                )}
 
                <input
@@ -1074,7 +1074,7 @@ export default function Home() {
                      : "Upload some files above to query your knowledge base..."
                  }
                  disabled={isTyping}
-                 className="w-full glass-input text-sm text-white pl-18 sm:pl-22 pr-14 py-3.5 rounded-2xl outline-none transition-all placeholder-slate-500"
+                 className="w-full glass-input text-sm text-white pl-[72px] sm:pl-[88px] pr-14 py-3.5 rounded-2xl outline-none transition-all placeholder-slate-500"
                />
                <button
                  type="submit"
