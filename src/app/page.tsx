@@ -330,11 +330,11 @@ export default function Home() {
 
     incomingFiles.forEach((file) => {
       const extension = file.name.split('.').pop()?.toLowerCase();
-      const isAllowed = ['pdf', 'docx', 'txt', 'csv', 'json'].includes(extension || '');
+      const isAllowed = ['pdf', 'docx', 'txt', 'csv', 'json', 'xlsx'].includes(extension || '');
       const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
       if (!isAllowed) {
-        setValidationError(`Invalid format for ${file.name}. Only PDF, DOCX, TXT, CSV, and JSON are supported.`);
+        setValidationError(`Invalid format for ${file.name}. Only PDF, DOCX, TXT, CSV, JSON, and XLSX are supported.`);
         return;
       }
 
