@@ -932,8 +932,8 @@ export default function Home() {
                   <div
                     className={`max-w-[85%] rounded-2xl p-4 shadow-lg flex flex-col gap-2 relative group ${
                       msg.role === 'user'
-                        ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-slate-900 rounded-br-none shadow-violet-950/10'
-                        : 'bg-slate-100/80 border border-slate-300 text-slate-100 rounded-bl-none'
+                        ? 'bg-slate-900 text-white rounded-br-none shadow-slate-900/10'
+                        : 'bg-white border border-slate-200 text-slate-900 rounded-bl-none'
                     }`}
                   >
                     
