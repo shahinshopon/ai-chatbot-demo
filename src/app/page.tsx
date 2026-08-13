@@ -378,6 +378,8 @@ export default function Home() {
           const storageRef = ref(storage!, storagePath);
           await uploadBytes(storageRef, await file.arrayBuffer(), { contentType: file.type });
           formData.append('direct_storage_path', storagePath);
+        } else {
+          formData.append('direct_storage_path', `simulated/${userUid}/${Date.now()}_${file.name}`);
         }
         // Always send metadata and skip the raw file for large files to avoid Vercel 4.5MB 413 errors
         formData.append('direct_filename', file.name);
