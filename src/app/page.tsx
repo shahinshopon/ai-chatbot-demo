@@ -837,8 +837,8 @@ export default function Home() {
                           <span className="text-[10px] text-slate-500">•</span>
                           <span className="text-[10px] text-slate-400 flex items-center gap-1">
                             {renderStatusBadge(file.status)}
-                            {file.status !== 'ready' && file.status !== 'failed' ? (
-                              <span>Processing <span className="text-indigo-400 font-mono ml-0.5">{file.progress}%</span></span>
+                            {file.status === 'indexing' ? (
+                              <span>Indexing... <span className="text-indigo-400 font-mono ml-0.5">{file.progress}%</span></span>
                             ) : (
                               getStatusText(file.status)
                             )}
