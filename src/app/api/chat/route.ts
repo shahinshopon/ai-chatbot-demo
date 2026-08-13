@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
       let sources: Array<{ filename: string; page?: number }> = [];
 
       if (image_url) {
-        responseText = "Yes! I matched your uploaded product image with a catalog match for our **Artestic Spherical Crimson Lounge Chair**.\n\n* **SKU**: LOU-CRIM-99\n* **Price**: $399.00 USD\n* **In Stock**: Yes (3 units available)\n* **Color**: Crimson Red\n* **Description**: A stunning artistic spherical lounge chair featuring vibrant crimson upholstery and an ultra-modern ergonomic design.\n\nHere is the product card for quick access:\n\n[![Artestic spherical crimson lounge chair](https://images.unsplash.com/photo-1601366533287-5ee4c763ae4e?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8bG91bmdlJTIwY2hhaXJ8ZW58MHx8MHx8fDA%3D)](https://example.com/products/crimson-lounge-chair)";
-        sources = [{ filename: 'furniture_catalog.csv' }];
+        responseText = "Yes! I matched your uploaded product image with a catalog match for our **Horizon Red Running Shoes**.\n\n* **SKU**: HRZ-9921\n* **Price**: $45.00 USD\n* **In Stock**: Yes (12 units available)\n* **Color**: Vibrant Red / White accents\n* **Description**: High-performance breathable mesh running shoe featuring reactive cushioning and reinforced heels for maximum comfort.\n\nHere is the product card for quick access:\n\n[![Horizon Red Running Shoes](https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop)](https://example.com/products/horizon-red-running-shoes)";
+        sources = [{ filename: 'shoes_and_shirts_catalog.csv' }];
       } else if (lowercaseMsg.includes('hello') || lowercaseMsg.includes('hi') || lowercaseMsg.includes('hey')) {
         responseText = "Hello! I am your isolated business knowledge assistant. Upload your documents (PDF, DOCX, TXT) and ask me anything about them. I will answer only using your uploaded knowledge.";
       } else if (lowercaseMsg.includes('pricing') || lowercaseMsg.includes('price') || lowercaseMsg.includes('cost')) {
@@ -68,15 +68,11 @@ export async function POST(req: NextRequest) {
         responseText = "Your uploaded company profile document states that we provide the following enterprise services:\n\n1. **AI-Driven Data Analytics**: Instantly extract intelligence from unstructured records.\n2. **Custom Cloud Infrastructure**: High-performance, low-latency private cloud deployments.\n3. **Cybersecurity Audits**: Continuous vulnerability scans and full RAG standard data compliance verification.";
         sources = [{ filename: 'company_profile.pdf', page: 1 }];
       } else if (lowercaseMsg.includes('contact') || lowercaseMsg.includes('support') || lowercaseMsg.includes('help')) {
-        responseText = "Based on the internal support directory, you can contact our technical assistance team at **support@knowledgechat.ai** or call **+8801991-151076** during standard operational hours (9 AM - 6 PM EST).";
+        responseText = "Based on the internal support directory, you can contact our technical assistance team at **support@knowledgechat.ai** or call **+1 (555) 019-2834** during standard operational hours (9 AM - 6 PM EST).";
         sources = [{ filename: 'internal_faq.txt' }];
-      } else if (lowercaseMsg.includes('chair') || lowercaseMsg.includes('lounge') || lowercaseMsg.includes('furniture')) {
-        if (lowercaseMsg.includes('shell') || lowercaseMsg.includes('circular') || lowercaseMsg.includes('white')) {
-          responseText = "Yes! I found a match in your uploaded product catalog for the **Artistic Circular Shell Lounge Chair**.\n\n* **SKU**: LOU-SHELL-45\n* **Price**: $450.00 USD\n* **In Stock**: Yes (5 units available)\n* **Color**: White Shell / Comfort Padding\n* **Description**: A futuristic egg-shaped lounge chair perfect for modern home office interiors, featuring exceptional comfort and a striking profile.\n\nHere is the product card for quick access:\n\n[![Artistic Circular Shell Lounge Chair](https://img.magnific.com/free-vector/ball-chair-round-armchair-front-side-view-futuristic-furniture-design-home-office-interior-comfortable-egg-shaped-seat-isolated-white-background-realistic-3d-vector-illustration_107791-4584.jpg?semt=ais_hybrid&w=740&q=80)](https://example.com/products/shell-lounge-chair)";
-        } else {
-          responseText = "Yes! I found a match in your uploaded product catalog for the **Artestic Spherical Crimson Lounge Chair**.\n\n* **SKU**: LOU-CRIM-99\n* **Price**: $399.00 USD\n* **In Stock**: Yes (3 units available)\n* **Color**: Crimson Red\n* **Description**: A stunning artistic spherical lounge chair featuring vibrant crimson upholstery and an ultra-modern ergonomic design.\n\nHere is the product card for quick access:\n\n[![Artestic spherical crimson lounge chair](https://images.unsplash.com/photo-1601366533287-5ee4c763ae4e?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8bG91bmdlJTIwY2hhaXJ8ZW58MHx8MHx8fDA%3D)](https://example.com/products/crimson-lounge-chair)";
-        }
-        sources = [{ filename: 'furniture_catalog.csv' }];
+      } else if (lowercaseMsg.includes('shoe') || lowercaseMsg.includes('running') || lowercaseMsg.includes('sneaker')) {
+        responseText = "Yes! I found a match in your uploaded product catalog for **Horizon Red Running Shoes**.\n\n* **SKU**: HRZ-9921\n* **Price**: $45.00 USD\n* **In Stock**: Yes (12 units available)\n* **Color**: Vibrant Red / White accents\n* **Description**: High-performance breathable mesh running shoe featuring reactive cushioning and reinforced heels for maximum comfort.\n\nHere is the product card for quick access:\n\n[![Horizon Red Running Shoes](https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop)](https://example.com/products/horizon-red-running-shoes)";
+        sources = [{ filename: 'shoes_and_shirts_catalog.csv' }];
       }
 
       return NextResponse.json({
