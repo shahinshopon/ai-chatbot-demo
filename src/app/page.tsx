@@ -999,7 +999,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    <span className={`text-[9px] self-end font-mono mt-1 ${msg.role === 'user' ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <span suppressHydrationWarning className={`text-[9px] self-end font-mono mt-1 ${msg.role === 'user' ? 'text-slate-400' : 'text-slate-500'}`}>
                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>

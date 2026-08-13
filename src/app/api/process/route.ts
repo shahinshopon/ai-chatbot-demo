@@ -7,6 +7,7 @@ import { chunkText } from '@/utils/chunker';
 import { ref, getBytes } from 'firebase/storage';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Allow maximum serverless execution time for large files
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -206,34 +207,44 @@ export async function POST(req: NextRequest) {
       throw new Error('No chunks could be generated from the document text');
     }
 
-    // 6. Generate embeddings and insert chunks
-    const chunkInserts = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const embedding = await getEmbedding(chunk);
+    // 6. Generate embeddings and insert chunks in batches to avoid Vercel/Supabase timeouts
+    const BATCH_SIZE = 20;
+    
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batchChunks = chunks.slice(i, i + BATCH_SIZE);
+      const chunkInserts = [];
+      
+      // We process embeddings sequentially within the batch to respect rate limits,
+      // or we could use Promise.all if the provider handles concurrency well.
+      // Doing it sequentially in small batches is safest for free tier limits.
+      for (let j = 0; j < batchChunks.length; j++) {
+        const chunkIndex = i + j;
+        const chunk = batchChunks[j];
+        const embedding = await getEmbedding(chunk);
 
-      chunkInserts.push({
-        document_id: docId,
-        user_uid: userUid,
-        chunk_text: chunk,
-        embedding: embedding,
-        page: parsed.pageCount > 1 ? i + 1 : 1, // Simple simulated page index if not extractable per-page
-        metadata: {
-          index: i,
-          total_chunks: chunks.length,
-          filename: doc.filename,
-        },
-      });
-    }
+        chunkInserts.push({
+          document_id: docId,
+          user_uid: userUid,
+          chunk_text: chunk,
+          embedding: embedding,
+          page: parsed.pageCount > 1 ? chunkIndex + 1 : 1,
+          metadata: {
+            index: chunkIndex,
+            total_chunks: chunks.length,
+            filename: doc.filename,
+          },
+        });
+      }
 
-    // Insert chunks into Supabase pgvector table
-    const { error: insertError } = await supabase!
-      .from('document_chunks')
-      .insert(chunkInserts);
+      // Insert this batch into Supabase pgvector table
+      const { error: insertError } = await supabase!
+        .from('document_chunks')
+        .insert(chunkInserts);
 
-    if (insertError) {
-      console.error('Supabase Chunks Insertion Error:', insertError);
-      throw new Error('Failed to index document chunks in database');
+      if (insertError) {
+        console.error('Supabase Chunks Insertion Error (Batch):', insertError);
+        throw new Error('Failed to index document chunks in database');
+      }
     }
 
     // Update status to indexed
