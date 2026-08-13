@@ -380,39 +380,57 @@ export default function Home() {
       const docData = await safeParseResponse(uploadRes, 'Upload failed');
       const dbId = docData.id;
 
-      // Step 2: Extracting Text
+      // Step 2: Start an artificial progress interval to keep users engaged while backend processes
       updateFileState(fileId, { progress: 60, status: 'extracting', dbId });
       
-      // Artificial dynamic delays inside simulation to display smooth pipeline transition
-      if (isSimulatedMode) {
-        await new Promise((r) => setTimeout(resolveProcessingStep(r, fileId, 'embedding', 80), 1000));
-        await new Promise((r) => setTimeout(resolveProcessingStep(r, fileId, 'indexing', 95), 1000));
+      let currentProgress = 60;
+      const progressInterval = setInterval(() => {
+        // As it gets closer to 99%, slow down the increment so it doesn't get stuck at 99% too fast
+        const increment = currentProgress > 90 ? (Math.random() > 0.5 ? 1 : 0) : Math.floor(Math.random() * 3) + 1;
+        currentProgress += increment;
+        if (currentProgress > 99) currentProgress = 99;
+        
+        let dynamicStatus: 'extracting' | 'embedding' | 'indexing' = 'extracting';
+        if (currentProgress > 75) dynamicStatus = 'embedding';
+        if (currentProgress > 88) dynamicStatus = 'indexing';
+
+        updateFileState(fileId, { progress: currentProgress, status: dynamicStatus });
+      }, 800);
+
+      try {
+        // Step 3: Trigger actual RAG parsing, embedding and vector database indexing
+        const processRes = await fetch('/api/process', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-uid': userUid,
+          },
+          body: JSON.stringify({
+            document_id: dbId,
+            user_uid: userUid,
+          }),
+        });
+
+        await safeParseResponse(processRes, 'Document processing failed');
+
+        // Completed Successfully
+        updateFileState(fileId, { progress: 100, status: 'ready' });
+      } catch (err: any) {
+        console.error(`Pipeline error for ${file.name}:`, err);
+        updateFileState(fileId, {
+          status: 'failed',
+          progress: 100,
+          errorMessage: err.message || 'Processing failed. Retry.',
+        });
+      } finally {
+        clearInterval(progressInterval);
       }
-
-      // Step 3: Trigger actual RAG parsing, embedding and vector database indexing
-      const processRes = await fetch('/api/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-uid': userUid,
-        },
-        body: JSON.stringify({
-          document_id: dbId,
-          user_uid: userUid,
-        }),
-      });
-
-      await safeParseResponse(processRes, 'Document processing failed');
-
-      // Completed Successfully
-      updateFileState(fileId, { progress: 100, status: 'ready' });
-
     } catch (err: any) {
-      console.error(`Pipeline error for ${file.name}:`, err);
+      console.error(`Upload error for ${file.name}:`, err);
       updateFileState(fileId, {
         status: 'failed',
         progress: 100,
-        errorMessage: err.message || 'Processing failed. Retry.',
+        errorMessage: err.message || 'Upload failed. Retry.',
       });
     }
   };
