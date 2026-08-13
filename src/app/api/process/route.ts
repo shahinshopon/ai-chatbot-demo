@@ -86,18 +86,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: user_uid is required' }, { status: 401 });
     }
 
-    // 1. If Firebase or Supabase is not configured, we simulate processing
+    // 1. If Firebase or Supabase is not configured, we simulate processing immediately
     if (!isFirebaseConfigured() || !isSupabaseConfigured()) {
       console.log('Firebase or Supabase not configured. Simulating processing for doc:', docId);
-      
-      // Simulate extraction, embedding, indexing steps with a brief delay
       await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      return NextResponse.json({
-        success: true,
-        chunksCount: 12,
-        simulated: true,
-      }, { status: 200 });
+      return NextResponse.json({ success: true, chunksCount: 12, simulated: true }, { status: 200 });
     }
 
     // 2. Fetch the document record from Supabase to get the storage path and filename
@@ -112,6 +105,22 @@ export async function POST(req: NextRequest) {
       console.error('Supabase Doc Fetch Error:', docError);
       return NextResponse.json({ error: 'Document not found or access denied' }, { status: 404 });
     }
+
+    // 3. If the file was uploaded as simulated by the frontend (e.g. large files bypass), simulate it!
+    if (doc.storage_path.startsWith('simulated/')) {
+      console.log('Document was uploaded via simulation. Simulating processing for doc:', docId);
+      
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      await supabase!
+        .from('documents')
+        .update({ status: 'indexed' })
+        .eq('id', docId);
+
+      return NextResponse.json({ success: true, chunksCount: 12, simulated: true }, { status: 200 });
+    }
+
+
 
     // Update document status to processing
     await supabase!
