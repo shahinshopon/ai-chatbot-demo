@@ -918,7 +918,7 @@ export default function Home() {
         </section>
 
         {/* Right column: High-fidelity Chat Interface (7 columns) */}
-        <section className="lg:col-span-7 flex flex-col bg-white/60 border border-slate-200/60 rounded-3xl min-h-[400px] md:min-h-[600px] overflow-hidden backdrop-blur-md shadow-2xl relative">
+        <section className="lg:col-span-7 flex flex-col bg-white/60 border border-slate-200/60 rounded-3xl h-[500px] md:h-[600px] lg:h-[calc(100vh-10rem)] overflow-hidden backdrop-blur-md shadow-2xl relative">
           
           {/* Active Chat Header */}
           <div className="px-4 md:px-6 py-3 md:py-4 border-b border-slate-200/80 bg-white/80 flex items-center justify-between flex-shrink-0">
