@@ -837,7 +837,11 @@ export default function Home() {
                           <span className="text-[10px] text-slate-500">•</span>
                           <span className="text-[10px] text-slate-400 flex items-center gap-1">
                             {renderStatusBadge(file.status)}
-                            {getStatusText(file.status)}
+                            {file.status !== 'ready' && file.status !== 'failed' ? (
+                              <span>Processing <span className="text-indigo-400 font-mono ml-0.5">{file.progress}%</span></span>
+                            ) : (
+                              getStatusText(file.status)
+                            )}
                           </span>
                         </div>
                         {/* Display subtle upload progress line */}
@@ -897,7 +901,7 @@ export default function Home() {
           </div>
 
           {/* Message List Panel */}
-          <div className="flex-1 overflow-y-auto p-2 md:p-6 space-y-4 scrollbar">
+          <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 scrollbar">
             
             <AnimatePresence>
               {messages.map((msg) => (
