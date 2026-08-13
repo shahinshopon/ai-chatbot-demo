@@ -783,7 +783,7 @@ export default function Home() {
           </div>
 
           {/* Drag & Drop Upload Container */}
-          <div className="space-y-4 flex-1 flex flex-col justify-end">
+          <div className="space-y-4 flex-1 flex flex-col">
             <div
               onDragEnter={handleDrag}
               onDragOver={handleDrag}
@@ -1012,7 +1012,7 @@ export default function Home() {
           <div className="p-2 md:p-5 border-t border-slate-900 bg-slate-950/60 flex-shrink-0 space-y-2">
             
             {/* Suggested Questions Bubble cards */}
-            {/* {messages.length === 1 && (
+            {messages.length === 1 && (
               <div className="space-y-2">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Suggested Questions</span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -1029,7 +1029,7 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-            )} */}
+            )}
 
              {/* Image Preview Thumbnail */}
              {attachedImage && (
