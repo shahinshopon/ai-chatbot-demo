@@ -26,7 +26,8 @@ import {
   Mic,
   StopCircle
 } from 'lucide-react';
-import { getAnonymousUser, isFirebaseConfigured } from '@/utils/firebase';
+import { getAnonymousUser, isFirebaseConfigured, storage } from '@/utils/firebase';
+import { ref, uploadBytes } from 'firebase/storage';
 import { isSupabaseConfigured } from '@/utils/supabase';
 import { isOpenAIConfigured } from '@/utils/openai';
 
@@ -366,8 +367,20 @@ export default function Home() {
       updateFileState(fileId, { progress: 30, status: 'uploading' });
 
       const formData = new FormData();
-      formData.append('file', file);
       formData.append('user_uid', userUid);
+
+      const isLargeFile = file.size > 4 * 1024 * 1024;
+      
+      if (isLargeFile && isFirebaseConfigured() && isSupabaseConfigured()) {
+        const storagePath = `users/${userUid}/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage!, storagePath);
+        await uploadBytes(storageRef, await file.arrayBuffer(), { contentType: file.type });
+        formData.append('direct_storage_path', storagePath);
+        formData.append('direct_filename', file.name);
+        formData.append('direct_file_size', file.size.toString());
+      } else {
+        formData.append('file', file);
+      }
 
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
@@ -800,7 +813,7 @@ export default function Home() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".pdf,.docx,.txt,.csv,.json"
+                accept=".pdf,.docx,.txt,.csv,.json,.xlsx"
                 onChange={handleFileInput}
                 className="hidden"
               />

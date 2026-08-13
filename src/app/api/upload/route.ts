@@ -8,38 +8,42 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
+    const directStoragePath = formData.get('direct_storage_path') as string | null;
+    const directFilename = formData.get('direct_filename') as string | null;
+    const directFileSize = formData.get('direct_file_size') as string | null;
     const userUid = req.headers.get('x-user-uid') || (formData.get('user_uid') as string);
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!file && !directStoragePath) {
+      return NextResponse.json({ error: 'No file or direct storage path provided' }, { status: 400 });
     }
 
     if (!userUid) {
       return NextResponse.json({ error: 'Unauthorized: No user UID provided' }, { status: 401 });
     }
 
+    // Determine metadata
+    const filename = file ? file.name : (directFilename || 'unknown');
+    const fileSize = file ? file.size : parseInt(directFileSize || '0', 10);
+    const extension = filename.split('.').pop()?.toLowerCase();
+
     // Validation: Max size 20MB
     const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
-    if (file.size > MAX_SIZE) {
+    if (fileSize > MAX_SIZE) {
       return NextResponse.json(
         { error: 'File size exceeds maximum limit of 20MB' },
         { status: 400 }
       );
     }
 
-    // Validation: File extensions (PDF, DOCX, TXT, CSV, JSON)
-    const allowedExtensions = ['pdf', 'docx', 'txt', 'csv', 'json'];
-    const extension = file.name.split('.').pop()?.toLowerCase();
+    // Validation: File extensions (PDF, DOCX, TXT, CSV, JSON, XLSX)
+    const allowedExtensions = ['pdf', 'docx', 'txt', 'csv', 'json', 'xlsx'];
     if (!extension || !allowedExtensions.includes(extension)) {
       return NextResponse.json(
-        { error: `Unsupported file type: .${extension}. Only PDF, DOCX, TXT, CSV, and JSON are allowed.` },
+        { error: `Unsupported file type: .${extension}. Only PDF, DOCX, TXT, CSV, JSON, and XLSX are allowed.` },
         { status: 400 }
       );
     }
-
-    const filename = file.name;
-    const buffer = Buffer.from(await file.arrayBuffer());
 
     // 1. If Firebase & Supabase are NOT configured, we enter beautiful simulation mode
     if (!isFirebaseConfigured() || !isSupabaseConfigured()) {
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
         user_uid: userUid,
         filename,
         storage_path: `users/${userUid}/${Date.now()}_${filename}`,
-        file_size: file.size,
+        file_size: fileSize,
         status: 'uploaded',
         uploaded_at: new Date().toISOString(),
       };
@@ -58,12 +62,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(simulatedDoc, { status: 200 });
     }
 
-    // 2. Upload original file to Firebase Storage
-    const storagePath = `users/${userUid}/${Date.now()}_${filename}`;
-    const storageRef = ref(storage!, storagePath);
-    await uploadBytes(storageRef, buffer, {
-      contentType: file.type,
-    });
+    let storagePath = directStoragePath;
+
+    // 2. Upload original file to Firebase Storage if not already uploaded directly
+    if (!directStoragePath && file) {
+      storagePath = `users/${userUid}/${Date.now()}_${filename}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const storageRef = ref(storage!, storagePath);
+      await uploadBytes(storageRef, buffer, {
+        contentType: file.type,
+      });
+    }
 
     // 3. Store document record in Supabase
     const { data: docData, error: docError } = await supabase!
@@ -72,7 +81,7 @@ export async function POST(req: NextRequest) {
         user_uid: userUid,
         filename,
         storage_path: storagePath,
-        file_size: file.size,
+        file_size: fileSize,
         status: 'uploaded',
       })
       .select()

@@ -1,3 +1,4 @@
+import * as xlsx from 'xlsx';
 import mammoth from 'mammoth';
 
 // Polyfill missing DOM elements at the module level on Node server-side to satisfy pdfjs-dist requirements
@@ -60,6 +61,8 @@ export async function parseDocument(
       return parseCsv(buffer);
     case 'json':
       return parseJson(buffer);
+    case 'xlsx':
+      return parseXlsx(buffer);
     default:
       throw new Error(`Unsupported file extension: .${extension}`);
   }
@@ -248,18 +251,38 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
   const content = buffer.toString('utf-8');
   const rows = parseCSVLines(content);
   if (rows.length < 2) {
-    return { text: '', pageCount: 1, products: [] };
+    return { text: content, pageCount: 1, products: [] };
   }
 
-  const headers = rows[0].map(h => h.toLowerCase());
+  // Look for headers in the first 3 rows to handle poorly formatted CSVs
+  let headerRowIdx = 0;
+  for (let i = 0; i < Math.min(3, rows.length); i++) {
+    if (rows[i].length > 2) {
+      headerRowIdx = i;
+      break;
+    }
+  }
+
+  const headers = rows[headerRowIdx].map(h => h.toLowerCase());
   
-  // Intelligent dynamic header locator
   const findIndex = (terms: string[]) => {
     return headers.findIndex(h => terms.some(t => h.includes(t)));
   };
 
-  const skuIdx = findIndex(['sku', 'id', 'handle', 'code']);
   const nameIdx = findIndex(['name', 'title', 'heading', 'product']);
+  
+  // If we can't find a name column, this is NOT a product catalog.
+  // Fall back to treating it as a generic data table for RAG.
+  if (nameIdx === -1) {
+    let rawText = '';
+    for (const row of rows) {
+      if (row.length === 0 || !row.join('').trim()) continue;
+      rawText += row.join(', ') + '\n';
+    }
+    return { text: rawText, pageCount: 1, products: [] };
+  }
+
+  const skuIdx = findIndex(['sku', 'id', 'handle', 'code']);
   const priceIdx = findIndex(['price', 'cost', 'amount', 'value']);
   const categoryIdx = findIndex(['category', 'type', 'tags', 'department']);
   const colorIdx = findIndex(['color', 'colour']);
@@ -272,12 +295,12 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
   const products: ParsedProduct[] = [];
   let summaryText = '';
 
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
     const row = rows[i];
-    if (row.length === 0 || !row[0]) continue;
+    if (row.length === 0 || !row.join('').trim()) continue;
 
     const name = nameIdx !== -1 && row[nameIdx] ? row[nameIdx] : '';
-    if (!name) continue; // Skip items without a name
+    if (!name) continue;
 
     const sku = skuIdx !== -1 && row[skuIdx] ? row[skuIdx] : `SKU-${1000 + i}`;
     
@@ -304,20 +327,19 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
     const product_url = urlIdx !== -1 && row[urlIdx] ? row[urlIdx] : undefined;
 
     products.push({
-      sku,
-      name,
-      price,
-      currency: 'USD',
-      category,
-      color,
-      size,
-      inStock,
-      description,
-      image_url,
-      product_url,
+      sku, name, price, currency: 'USD', category, color, size, inStock, description, image_url, product_url,
     });
 
-    summaryText += `Product: ${name} (SKU: ${sku}) | Price: $${price} | Category: ${category || 'None'} | Description: ${description || 'No description'}\n`;
+    summaryText += `Product: ${name} (SKU: ${sku}) | Price: ${price} | Category: ${category || 'None'} | Description: ${description || 'No description'}\n`;
+  }
+
+  // If we skipped everything because it was badly formatted but had a header, just dump it as raw text
+  if (products.length === 0) {
+    let rawText = '';
+    for (const row of rows) {
+      if (row.join('').trim()) rawText += row.join(', ') + '\n';
+    }
+    return { text: rawText, pageCount: 1, products: [] };
   }
 
   return {
@@ -428,3 +450,29 @@ async function parseJson(buffer: Buffer): Promise<ParsedDocument> {
 
 
 
+
+/**
+ * Parses XLSX Excel documents.
+ */
+async function parseXlsx(buffer: Buffer): Promise<ParsedDocument> {
+  let workbook;
+  try {
+    workbook = xlsx.read(buffer, { type: 'buffer' });
+  } catch (e) {
+    throw new Error('Invalid Excel file format.');
+  }
+
+  let text = '';
+  for (const sheetName of workbook.SheetNames) {
+    const worksheet = workbook.Sheets[sheetName];
+    text += `--- Sheet: ${sheetName} ---\n`;
+    const csvStr = xlsx.utils.sheet_to_csv(worksheet);
+    text += csvStr + '\n\n';
+  }
+
+  if (!text || text.trim().length === 0) {
+    throw new Error('Excel document contains no extractable text');
+  }
+
+  return { text, pageCount: workbook.SheetNames.length };
+}
