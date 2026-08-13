@@ -1058,7 +1058,7 @@ export default function Home() {
              />
 
              {/* Prompt input field */}
-             <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(undefined, inputMessage); }} className="relative flex items-center">
+              <form onSubmit={(e) => handleSendMessage(e)} className="relative flex items-center">
                {/* Camera attachment button on the left */}
                <button
                  type="button"
