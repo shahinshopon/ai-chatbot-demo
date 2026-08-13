@@ -96,9 +96,9 @@ function renderMessageText(text: string) {
           return (
             <div 
               key={index}
-              className="bg-slate-950/50 border border-slate-800/80 rounded-xl overflow-hidden shadow-lg flex flex-col sm:flex-row gap-4 p-3.5 my-3.5 hover:border-violet-500/40 hover:shadow-violet-950/10 transition-all duration-300 group/card text-left"
+              className="bg-white/70 border border-slate-300/80 rounded-xl overflow-hidden shadow-lg flex flex-col sm:flex-row gap-4 p-3.5 my-3.5 hover:border-violet-500/40 hover:shadow-violet-950/10 transition-all duration-300 group/card text-left"
             >
-              <div className="relative w-full sm:w-24 h-24 bg-slate-900 border border-slate-800/60 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center self-center">
+              <div className="relative w-full sm:w-24 h-24 bg-slate-100 border border-slate-300/60 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center self-center">
                 {part.image_url && part.image_url !== 'N/A' ? (
                   <img 
                     src={part.image_url} 
@@ -119,7 +119,7 @@ function renderMessageText(text: string) {
                       In Stock Match
                     </span>
                   </div>
-                  <h4 className="text-white font-bold text-sm mt-2 tracking-tight group-hover/card:text-violet-300 transition-colors">
+                  <h4 className="text-slate-900 font-bold text-sm mt-2 tracking-tight group-hover/card:text-violet-300 transition-colors">
                     {part.name}
                   </h4>
                 </div>
@@ -128,7 +128,7 @@ function renderMessageText(text: string) {
                     href={part.product_url} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-white bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 px-3.5 py-1.5 rounded-lg transition-all shadow-md shadow-violet-950/20 active:scale-95"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-900 bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 px-3.5 py-1.5 rounded-lg transition-all shadow-md shadow-violet-950/20 active:scale-95"
                   >
                     <span>View Product</span>
                     <ExternalLink className="w-3 h-3" />
@@ -670,7 +670,7 @@ export default function Home() {
       case 'indexing':
         return <Loader2 className="w-4 h-4 text-fuchsia-400 animate-spin" />;
       case 'ready':
-        return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+        return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
       case 'failed':
         return <AlertCircle className="w-4 h-4 text-rose-500" />;
       default:
@@ -722,13 +722,13 @@ export default function Home() {
       </AnimatePresence> */}
 
       {/* Premium Header */}
-      <header className="border-b border-slate-900/80 bg-slate-950/60 backdrop-blur-md relative z-10 py-4 px-6 md:px-12 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <header className="border-b border-slate-200/80 bg-white/80 backdrop-blur-md relative z-10 py-4 px-6 md:px-12 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center bg-transparent">
-            <img src="/logo.jpg" alt="Logo" className="w-8 h-12 object-contain rounded-full shadow-sm shadow-slate-900/50" />
+            <img src="/logo.jpg" alt="Logo" className="w-8 h-12 object-contain rounded-full shadow-sm shadow-slate-200/60" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 bg-clip-text text-transparent">
               TulipTech AI
             </h1>
             <p className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Intelligent Knowledge Assistant</p>
@@ -736,10 +736,10 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 bg-slate-900/60 border border-slate-800 px-3 py-1.5 rounded-full text-xs font-mono text-slate-400 shadow-inner">
+          <div className="hidden sm:flex items-center gap-2 bg-slate-100/80 border border-slate-300 px-3 py-1.5 rounded-full text-xs font-mono text-slate-600 shadow-inner">
             <Lock className="w-3.5 h-3.5 text-indigo-400" />
             <span>UID:</span>
-            <span className="text-slate-300 max-w-[120px] truncate">{userUid || 'Anonymous Loading...'}</span>
+            <span className="text-slate-700 max-w-[120px] truncate">{userUid || 'Anonymous Loading...'}</span>
           </div>
         </div>
       </header>
@@ -765,7 +765,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1] text-white break-words"
+              className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1] text-slate-900 break-words"
             >
               Chat With Your <br />
               <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-indigo-400 bg-clip-text text-transparent">
@@ -776,7 +776,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-slate-400 text-sm md:text-base max-w-lg leading-relaxed"
+              className="text-slate-600 text-sm md:text-base max-w-lg leading-relaxed"
             >
               Upload your business documents and instantly create an isolated, secure AI assistant trained only on your files. No data leaks, no guesswork.
             </motion.p>
@@ -793,7 +793,7 @@ export default function Home() {
               className={`glow-border cursor-pointer relative p-8 md:p-10 rounded-2xl border border-dashed transition-all duration-300 flex flex-col items-center justify-center gap-4 text-center glass-panel glass-panel-hover ${
                 dragActive
                   ? 'border-violet-500 bg-violet-950/10 scale-[1.01]'
-                  : 'border-slate-800 bg-slate-950/30'
+                  : 'border-slate-300 bg-white/30'
               }`}
             >
               <input
@@ -804,11 +804,11 @@ export default function Home() {
                 onChange={handleFileInput}
                 className="hidden"
               />
-              <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-full shadow-lg text-violet-400 shadow-violet-950/20 group-hover:scale-110 transition-transform">
+              <div className="p-4 bg-slate-100/80 border border-slate-300 rounded-full shadow-lg text-violet-400 shadow-violet-950/20 group-hover:scale-110 transition-transform">
                 <UploadCloud className="w-8 h-8 animate-pulse" />
               </div>
               <div>
-                <h3 className="text-white font-medium text-sm">Drag & drop files or click to upload</h3>
+                <h3 className="text-slate-900 font-medium text-sm">Drag & drop files or click to upload</h3>
                 <p className="text-slate-500 text-xs mt-1.5">Supports PDF, DOCX, TXT, CSV, JSON (Max 50 files, up to 20MB each)</p>
               </div>
             </div>
@@ -822,7 +822,7 @@ export default function Home() {
                   exit={{ opacity: 0, y: 10 }}
                   className="bg-rose-950/40 border border-rose-900/30 rounded-xl p-3.5 flex items-start gap-3 text-rose-300 text-xs"
                 >
-                  <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <span className="font-semibold block mb-0.5">Validation Alert</span>
                     {validationError}
@@ -840,20 +840,20 @@ export default function Home() {
                     initial={{ opacity: 0, x: -15 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 15 }}
-                    className="flex items-center justify-between p-3.5 rounded-xl border border-slate-900 bg-slate-950/50 backdrop-blur-sm group hover:border-slate-800 transition-colors"
+                    className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-white/70 backdrop-blur-sm group hover:border-slate-300 transition-colors"
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 group-hover:text-indigo-400 transition-colors flex-shrink-0">
+                      <div className="p-2 bg-slate-100 border border-slate-300 rounded-lg text-slate-600 group-hover:text-indigo-400 transition-colors flex-shrink-0">
                         <FileText className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-slate-200 text-xs font-semibold truncate pr-2" title={file.name}>
+                        <h4 className="text-slate-800 text-xs font-semibold truncate pr-2" title={file.name}>
                           {file.name}
                         </h4>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-[10px] text-slate-500 font-mono">{formatBytes(file.size)}</span>
                           <span className="text-[10px] text-slate-500">•</span>
-                          <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <span className="text-[10px] text-slate-600 flex items-center gap-1">
                             {renderStatusBadge(file.status)}
                             {file.status === 'indexing' ? (
                               <span>Indexing... <span className="text-indigo-400 font-mono ml-0.5">{file.progress}%</span></span>
@@ -864,7 +864,7 @@ export default function Home() {
                         </div>
                         {/* Display subtle upload progress line */}
                         {file.status !== 'ready' && file.status !== 'failed' && (
-                          <div className="w-full bg-slate-900 h-1 rounded-full mt-2 overflow-hidden">
+                          <div className="w-full bg-slate-100 h-1 rounded-full mt-2 overflow-hidden">
                             <motion.div
                               className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full"
                               initial={{ width: 0 }}
@@ -874,13 +874,13 @@ export default function Home() {
                           </div>
                         )}
                         {file.status === 'failed' && (
-                          <p className="text-[10px] text-rose-400 mt-1">{file.errorMessage || 'Unknown extraction error'}</p>
+                          <p className="text-[10px] text-rose-600 mt-1">{file.errorMessage || 'Unknown extraction error'}</p>
                         )}
                       </div>
                     </div>
                     <button
                       onClick={() => handleDeleteFile(file)}
-                      className="p-1.5 rounded-md hover:bg-slate-900 border border-transparent hover:border-slate-800 text-slate-500 hover:text-rose-400 transition-all flex-shrink-0 ml-2"
+                      className="p-1.5 rounded-md hover:bg-slate-100 border border-transparent hover:border-slate-300 text-slate-500 hover:text-rose-600 transition-all flex-shrink-0 ml-2"
                       title="Delete document"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -890,7 +890,7 @@ export default function Home() {
               </AnimatePresence>
 
               {files.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center py-10 border border-dashed border-slate-900 rounded-xl bg-slate-950/10">
+                <div className="h-full flex flex-col items-center justify-center py-10 border border-dashed border-slate-200 rounded-xl bg-slate-100/50">
                   <p className="text-xs text-slate-500">No documents added to current knowledge base.</p>
                 </div>
               )}
@@ -899,14 +899,14 @@ export default function Home() {
         </section>
 
         {/* Right column: High-fidelity Chat Interface (7 columns) */}
-        <section className="lg:col-span-7 flex flex-col bg-slate-950/40 border border-slate-900/60 rounded-3xl min-h-[400px] md:min-h-[600px] overflow-hidden backdrop-blur-md shadow-2xl relative">
+        <section className="lg:col-span-7 flex flex-col bg-white/60 border border-slate-200/60 rounded-3xl min-h-[400px] md:min-h-[600px] overflow-hidden backdrop-blur-md shadow-2xl relative">
           
           {/* Active Chat Header */}
-          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-slate-900/80 bg-slate-950/60 flex items-center justify-between flex-shrink-0">
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b border-slate-200/80 bg-white/80 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse" />
               <div>
-                <h3 className="text-white font-bold text-sm">AI Agent</h3>
+                <h3 className="text-slate-900 font-bold text-sm">AI Agent</h3>
                 {/* <p className="text-[10px] text-slate-500">Replies strictly from your {files.filter(f => f.status === 'ready').length} documents</p> */}
               </div>
             </div>
@@ -932,8 +932,8 @@ export default function Home() {
                   <div
                     className={`max-w-[85%] rounded-2xl p-4 shadow-lg flex flex-col gap-2 relative group ${
                       msg.role === 'user'
-                        ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white rounded-br-none shadow-violet-950/10'
-                        : 'bg-slate-900/80 border border-slate-800 text-slate-100 rounded-bl-none'
+                        ? 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-slate-900 rounded-br-none shadow-violet-950/10'
+                        : 'bg-slate-100/80 border border-slate-300 text-slate-100 rounded-bl-none'
                     }`}
                   >
                     
@@ -941,11 +941,11 @@ export default function Home() {
                     {msg.role === 'assistant' && (
                       <button
                         onClick={() => handleCopyToClipboard(msg.text, msg.id)}
-                        className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1 rounded-md bg-slate-950/40 border border-slate-800 text-slate-400 hover:text-white transition-opacity"
+                        className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1 rounded-md bg-white/60 border border-slate-300 text-slate-600 hover:text-slate-900 transition-opacity"
                         title="Copy to clipboard"
                       >
                         {copiedId === msg.id ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                         ) : (
                           <Copy className="w-3.5 h-3.5" />
                         )}
@@ -954,19 +954,19 @@ export default function Home() {
 
                     {/* User Sent Image rendering */}
                     {msg.image && (
-                      <div className="relative max-w-[280px] rounded-xl overflow-hidden border border-slate-800/80 mb-1 bg-slate-950/40 shadow-inner">
+                      <div className="relative max-w-[280px] rounded-xl overflow-hidden border border-slate-300/80 mb-1 bg-white/60 shadow-inner">
                         <img src={msg.image} alt="Uploaded attachment" className="object-cover w-full h-auto max-h-48" />
                       </div>
                     )}
 
                     {/* Content */}
-                    <div className="text-sm leading-relaxed selection:bg-violet-500/30 selection:text-white">
+                    <div className="text-sm leading-relaxed selection:bg-violet-500/30 selection:text-slate-900">
                       {renderMessageText(msg.text)}
                     </div>
 
                     {/* Source citations rendering */}
                     {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-3.5 pt-3 border-t border-slate-800/80 flex flex-col gap-1.5">
+                      <div className="mt-3.5 pt-3 border-t border-slate-300/80 flex flex-col gap-1.5">
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                           References Used ({msg.sources.length})
                         </span>
@@ -974,7 +974,7 @@ export default function Home() {
                           {msg.sources.map((src, i) => (
                             <span
                               key={i}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-slate-950/60 border border-slate-800 rounded-md text-indigo-400"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-white/80 border border-slate-300 rounded-md text-indigo-400"
                               title={src.filename}
                             >
                               <FileText className="w-3 h-3 text-slate-500" />
@@ -986,7 +986,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    <span className="text-[9px] text-slate-400/70 self-end font-mono mt-1">
+                    <span className="text-[9px] text-slate-600/70 self-end font-mono mt-1">
                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -997,7 +997,7 @@ export default function Home() {
             {/* Simulated typing dot animation */}
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-slate-900/80 border border-slate-800 rounded-2xl rounded-bl-none p-4 flex items-center gap-1.5">
+                <div className="bg-slate-100/80 border border-slate-300 rounded-2xl rounded-bl-none p-4 flex items-center gap-1.5">
                   <div className="w-2 h-2 bg-indigo-500 rounded-full dot-bounce" />
                   <div className="w-2 h-2 bg-indigo-500 rounded-full dot-bounce" />
                   <div className="w-2 h-2 bg-indigo-500 rounded-full dot-bounce" />
@@ -1009,7 +1009,7 @@ export default function Home() {
           </div>
 
           {/* Quick Suggested Questions & Prompt input Footer */}
-          <div className="p-2 md:p-5 border-t border-slate-900 bg-slate-950/60 flex-shrink-0 space-y-2">
+          <div className="p-2 md:p-5 border-t border-slate-200 bg-white/80 flex-shrink-0 space-y-2">
             
             {/* Suggested Questions Bubble cards */}
             {messages.length === 1 && (
@@ -1021,7 +1021,7 @@ export default function Home() {
                       key={i}
                       onClick={() => handleSendMessage(undefined, q)}
                       disabled={isTyping}
-                      className="text-left p-3 text-xs bg-slate-900/40 hover:bg-slate-900 border border-slate-800 hover:border-indigo-500/30 text-slate-300 hover:text-white rounded-xl transition-all shadow-sm flex items-start gap-2 group cursor-pointer"
+                      className="text-left p-3 text-xs bg-slate-100/40 hover:bg-slate-100 border border-slate-300 hover:border-indigo-500/30 text-slate-700 hover:text-slate-900 rounded-xl transition-all shadow-sm flex items-start gap-2 group cursor-pointer"
                     >
                       <MessageSquare className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 flex-shrink-0 mt-0.5" />
                       <span>{q}</span>
@@ -1033,8 +1033,8 @@ export default function Home() {
 
              {/* Image Preview Thumbnail */}
              {attachedImage && (
-               <div className="relative inline-flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-xl p-2 mb-3 shadow-lg group">
-                 <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+               <div className="relative inline-flex items-center gap-2 bg-slate-100/90 border border-slate-300 rounded-xl p-2 mb-3 shadow-lg group">
+                 <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-300 bg-white">
                    <img src={attachedImage} alt="Attachment preview" className="object-cover w-full h-full" />
                  </div>
                  <button
@@ -1064,7 +1064,7 @@ export default function Home() {
                  type="button"
                  onClick={() => chatImageInputRef.current?.click()}
                  disabled={isTyping}
-                 className="absolute left-3 sm:left-3 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all z-10"
+                 className="absolute left-3 sm:left-3 p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200/40 transition-all z-10"
                  title="Attach product image"
                >
                  <Camera className="w-4 h-4" />
@@ -1075,7 +1075,7 @@ export default function Home() {
                  type="button"
                  onClick={isRecording ? stopRecording : startRecording}
                  disabled={isTyping}
-                 className="absolute left-10 sm:left-12 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all z-10"
+                 className="absolute left-10 sm:left-12 p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200/40 transition-all z-10"
                  title={isRecording ? 'Stop Recording' : 'Start Voice Recording'}
                >
                  {isRecording ? <StopCircle className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -1083,7 +1083,7 @@ export default function Home() {
 
                {/* Detected language badge */}
                {detectedLang && (
-                 <span className="absolute left-[88px] sm:left-[96px] top-[14px] text-[10px] text-slate-400 bg-slate-800/50 px-1.5 rounded uppercase">{detectedLang}</span>
+                 <span className="absolute left-[88px] sm:left-[96px] top-[14px] text-[10px] text-slate-600 bg-slate-200/50 px-1.5 rounded uppercase">{detectedLang}</span>
                )}
 
                <input
@@ -1096,7 +1096,7 @@ export default function Home() {
                      : "Upload some files above to query your knowledge base..."
                  }
                  disabled={isTyping}
-                 className="w-full glass-input text-sm text-white pl-[72px] sm:pl-[88px] pr-14 py-3.5 rounded-2xl outline-none transition-all placeholder-slate-500"
+                 className="w-full glass-input text-sm text-slate-900 pl-[72px] sm:pl-[88px] pr-14 py-3.5 rounded-2xl outline-none transition-all placeholder-slate-500"
                />
                <button
                  type="submit"
@@ -1112,7 +1112,7 @@ export default function Home() {
       </main>
 
       {/* Premium minimal Footer */}
-      <footer className="border-t border-slate-900/60 py-5 bg-slate-950/40 relative z-10 text-center text-slate-600 text-xs">
+      <footer className="border-t border-slate-200/60 py-5 bg-white/60 relative z-10 text-center text-slate-600 text-xs">
         <p>© 2026 KnowledgeChat AI. Zero-knowledge isolated RAG environment. All data resides in private sandbox containers.</p>
       </footer>
     </div>
