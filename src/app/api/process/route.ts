@@ -201,7 +201,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Chunk the plain text
-    const chunks = chunkText(parsed.text);
+    let chunks = chunkText(parsed.text);
+
+    // Limit chunks to 80 (approx 80k-120k words) to guarantee it finishes before Vercel's 60s serverless timeout
+    if (chunks.length > 80) {
+      console.warn(`Truncating document chunks from ${chunks.length} to 80 to prevent Serverless execution timeout.`);
+      chunks = chunks.slice(0, 80);
+    }
 
     if (chunks.length === 0) {
       throw new Error('No chunks could be generated from the document text');

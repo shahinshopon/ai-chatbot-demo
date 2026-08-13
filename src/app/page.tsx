@@ -370,12 +370,16 @@ export default function Home() {
       formData.append('user_uid', userUid);
 
       const isLargeFile = file.size > 4 * 1024 * 1024;
-      
-      if (isLargeFile && isFirebaseConfigured() && isSupabaseConfigured()) {
-        const storagePath = `users/${userUid}/${Date.now()}_${file.name}`;
-        const storageRef = ref(storage!, storagePath);
-        await uploadBytes(storageRef, await file.arrayBuffer(), { contentType: file.type });
-        formData.append('direct_storage_path', storagePath);
+      const hasFirebase = isFirebaseConfigured() && isSupabaseConfigured();
+
+      if (isLargeFile) {
+        if (hasFirebase) {
+          const storagePath = `users/${userUid}/${Date.now()}_${file.name}`;
+          const storageRef = ref(storage!, storagePath);
+          await uploadBytes(storageRef, await file.arrayBuffer(), { contentType: file.type });
+          formData.append('direct_storage_path', storagePath);
+        }
+        // Always send metadata and skip the raw file for large files to avoid Vercel 4.5MB 413 errors
         formData.append('direct_filename', file.name);
         formData.append('direct_file_size', file.size.toString());
       } else {
