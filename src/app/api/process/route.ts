@@ -1,73 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '@/utils/supabase';
 import { storage, isFirebaseConfigured } from '@/utils/firebase';
-import { getEmbedding, openai } from '@/utils/openai';
+import { getBatchEmbeddings, openai } from '@/utils/openai';
 import { parseDocument } from '@/utils/parsers';
 import { chunkText } from '@/utils/chunker';
 import { ref, getBytes } from 'firebase/storage';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow maximum serverless execution time for large files
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function getVisualDescriptionWithRetry(
-  openaiClient: any,
-  imageUrl: string,
-  name: string,
-  retries = 3,
-  baseDelay = 500
-): Promise<string | null> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const visResponse = await openaiClient.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Analyze this product image. Describe its key visual characteristics (colors, styles, designs, patterns, types) in a single concise sentence of under 15 words. Be extremely specific about colors and style (e.g., "pastel yellow, pink, and light blue Nike Air Force style sneakers"). Do not include other text.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 50,
-      });
-
-      return visResponse.choices[0]?.message?.content?.trim() || null;
-    } catch (err: any) {
-      const isRateLimit = err?.status === 429 || (err?.message && err.message.includes('rate_limit_exceeded'));
-      if (isRateLimit && attempt < retries) {
-        let delayMs = baseDelay * Math.pow(2, attempt);
-        if (err.headers) {
-          // Attempt to extract the retry duration from openai headers if present
-          const retryAfterMs = err.headers.get?.('retry-after-ms') || err.headers.get?.('Retry-After-Ms');
-          if (retryAfterMs) {
-            delayMs = parseInt(retryAfterMs, 10) + 100;
-          } else {
-            const retryAfterSec = err.headers.get?.('retry-after') || err.headers.get?.('Retry-After');
-            if (retryAfterSec) {
-              delayMs = (parseInt(retryAfterSec, 10) * 1000) + 100;
-            }
-          }
-        }
-        console.warn(`[Rate Limit 429] for "${name}" (Attempt ${attempt}/${retries}). Retrying in ${delayMs}ms...`);
-        await sleep(delayMs);
-      } else {
-        throw err;
-      }
-    }
-  }
-  return null;
-}
 
 export async function POST(req: NextRequest) {
   let docId = '';
@@ -120,8 +60,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, chunksCount: 12, simulated: true }, { status: 200 });
     }
 
-
-
     // Update document status to processing
     await supabase!
       .from('documents')
@@ -136,61 +74,47 @@ export async function POST(req: NextRequest) {
     // 4. Parse document to plain text
     const parsed = await parseDocument(fileBuffer, doc.filename);
     
-    // If the parsed document contains structured products, index them directly into products table (Phase 2 Catalog Ingestion)
+    // If the parsed document contains structured products, index them directly into products table
     if (parsed.products && parsed.products.length > 0) {
       console.log(`Processing Catalog with ${parsed.products.length} products`);
-      const productInserts = [];
+      const productsToProcess = parsed.products.slice(0, 100);
 
-      for (let i = 0; i < parsed.products.length; i++) {
-        const item = parsed.products[i];
-        let finalDescription = item.description || '';
+      // Construct text representation for each product
+      const textsToEmbed = productsToProcess.map((item: any) => {
+        return `Name: ${item.name} | SKU: ${item.sku} | Category: ${item.category || 'N/A'} | Price: $${item.price} | Color: ${item.color || 'N/A'} | Size: ${item.size || 'N/A'} | Description: ${item.description || 'N/A'}`;
+      });
 
-        // Generate concise visual description on-the-fly with rate-limit resilient retries
-        if (item.image_url && openai) {
-          try {
-            console.log(`Generating on-the-fly visual description for catalog item: ${item.name}`);
-            const visText = await getVisualDescriptionWithRetry(openai, item.image_url, item.name);
-            if (visText) {
-              finalDescription = `${finalDescription} [Visual description: ${visText}]`.trim();
-              console.log(`Successfully generated Visual Description for "${item.name}": "${visText}"`);
-            }
-            
-            // Add a tiny voluntary 100ms delay to space out visual description calls nicely and protect the TPM quota
-            await sleep(100);
-          } catch (visErr) {
-            console.error(`Failed to generate visual description for ${item.name} after retries:`, visErr);
-          }
+      // Generate all embeddings in high-speed batches
+      const embeddings = await getBatchEmbeddings(textsToEmbed);
+
+      const productInserts = productsToProcess.map((item: any, i: number) => ({
+        document_id: docId,
+        user_uid: userUid,
+        sku: item.sku,
+        name: item.name,
+        price: item.price,
+        currency: item.currency || 'USD',
+        category: item.category || null,
+        color: item.color || null,
+        size: item.size || null,
+        in_stock: item.inStock !== false,
+        description: item.description || null,
+        image_url: item.image_url || null,
+        product_url: item.product_url || null,
+        embedding: embeddings[i],
+      }));
+
+      // Insert products in batches of 50 to prevent Supabase statement timeout
+      for (let i = 0; i < productInserts.length; i += 50) {
+        const batch = productInserts.slice(i, i + 50);
+        const { error: productInsertError } = await supabase!
+          .from('products')
+          .insert(batch);
+
+        if (productInsertError) {
+          console.error('Supabase Catalog Ingestion Error:', productInsertError);
+          throw new Error('Failed to index product catalog items in database');
         }
-        
-        // Build descriptive textual block for generating semantic vector representation
-        const textToEmbed = `Name: ${item.name} | SKU: ${item.sku} | Category: ${item.category || 'N/A'} | Price: $${item.price} | Color: ${item.color || 'N/A'} | Size: ${item.size || 'N/A'} | Description: ${finalDescription || 'N/A'}`;
-        const embedding = await getEmbedding(textToEmbed);
-
-        productInserts.push({
-          document_id: docId,
-          user_uid: userUid,
-          sku: item.sku,
-          name: item.name,
-          price: item.price,
-          currency: item.currency || 'USD',
-          category: item.category || null,
-          color: item.color || null,
-          size: item.size || null,
-          in_stock: item.inStock !== false,
-          description: finalDescription || null,
-          image_url: item.image_url || null,
-          product_url: item.product_url || null,
-          embedding: embedding,
-        });
-      }
-
-      const { error: productInsertError } = await supabase!
-        .from('products')
-        .insert(productInserts);
-
-      if (productInsertError) {
-        console.error('Supabase Catalog Ingestion Error:', productInsertError);
-        throw new Error('Failed to index product catalog items in database');
       }
 
       // Update status to indexed
@@ -201,7 +125,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        productsCount: parsed.products.length,
+        productsCount: productsToProcess.length,
       }, { status: 200 });
     }
 
@@ -212,7 +136,7 @@ export async function POST(req: NextRequest) {
     // 5. Chunk the plain text
     let chunks = chunkText(parsed.text);
 
-    // Limit chunks to 80 (approx 80k-120k words) to guarantee it finishes before Vercel's 60s serverless timeout
+    // Limit chunks to 80 (approx 80k-120k words) to guarantee completion
     if (chunks.length > 80) {
       console.warn(`Truncating document chunks from ${chunks.length} to 80 to prevent Serverless execution timeout.`);
       chunks = chunks.slice(0, 80);
@@ -222,34 +146,28 @@ export async function POST(req: NextRequest) {
       throw new Error('No chunks could be generated from the document text');
     }
 
-    // 6. Generate embeddings and insert chunks in batches to avoid Vercel/Supabase timeouts
-    const BATCH_SIZE = 20;
+    // 6. Generate embeddings and insert chunks in high-speed batches
+    const BATCH_SIZE = 30;
     
     for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
       const batchChunks = chunks.slice(i, i + BATCH_SIZE);
-      const chunkInserts = [];
-      
-      // We process embeddings sequentially within the batch to respect rate limits,
-      // or we could use Promise.all if the provider handles concurrency well.
-      // Doing it sequentially in small batches is safest for free tier limits.
-      for (let j = 0; j < batchChunks.length; j++) {
-        const chunkIndex = i + j;
-        const chunk = batchChunks[j];
-        const embedding = await getEmbedding(chunk);
+      const batchEmbeddings = await getBatchEmbeddings(batchChunks);
 
-        chunkInserts.push({
+      const chunkInserts = batchChunks.map((chunk, j) => {
+        const chunkIndex = i + j;
+        return {
           document_id: docId,
           user_uid: userUid,
           chunk_text: chunk,
-          embedding: embedding,
+          embedding: batchEmbeddings[j],
           page: parsed.pageCount > 1 ? chunkIndex + 1 : 1,
           metadata: {
             index: chunkIndex,
             total_chunks: chunks.length,
             filename: doc.filename,
           },
-        });
-      }
+        };
+      });
 
       // Insert this batch into Supabase pgvector table
       const { error: insertError } = await supabase!

@@ -8,28 +8,36 @@ export const openai = !isPlaceholder
   : null;
 
 /**
- * Generates an embedding for a given text.
- * Falls back to mock values if OpenAI API Key is not configured.
+ * Generates embeddings in batch for an array of texts in a single API call.
  */
-export async function getEmbedding(text: string): Promise<number[]> {
+export async function getBatchEmbeddings(texts: string[]): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  
   if (isPlaceholder || !openai) {
-    // Generate a pseudo-random mock embedding for simulation
-    const mockVector = Array.from({ length: 1536 }, (_, i) => {
-      // Create some variance based on the string chars
-      const charCode = text.charCodeAt(i % text.length) || 0;
-      return Math.sin(i + charCode) * 0.05;
+    return texts.map(text => {
+      const mockVector = Array.from({ length: 1536 }, (_, i) => {
+        const charCode = text.charCodeAt(i % text.length) || 0;
+        return Math.sin(i + charCode) * 0.05;
+      });
+      const magnitude = Math.sqrt(mockVector.reduce((sum, val) => sum + val * val, 0));
+      return mockVector.map(val => val / magnitude);
     });
-    // Normalize mock vector
-    const magnitude = Math.sqrt(mockVector.reduce((sum, val) => sum + val * val, 0));
-    return mockVector.map(val => val / magnitude);
   }
 
   const response = await openai.embeddings.create({
     model: 'text-embedding-3-small',
-    input: text.replace(/\n/g, ' '),
+    input: texts.map(t => t.replace(/\n/g, ' ')),
   });
 
-  return response.data[0].embedding;
+  return response.data.map(d => d.embedding);
+}
+
+/**
+  * Generates an embedding for a single string.
+  */
+export async function getEmbedding(text: string): Promise<number[]> {
+  const [embedding] = await getBatchEmbeddings([text]);
+  return embedding;
 }
 
 /**
