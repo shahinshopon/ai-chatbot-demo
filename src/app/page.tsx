@@ -24,7 +24,10 @@ import {
   ShoppingBag,
   Camera,
   Mic,
-  StopCircle
+  StopCircle,
+  Download,
+  Maximize2,
+  ZoomIn
 } from 'lucide-react';
 import { getAnonymousUser, isFirebaseConfigured, storage } from '@/utils/firebase';
 import { ref, uploadBytes } from 'firebase/storage';
@@ -50,31 +53,85 @@ interface Message {
   image?: string;
 }
 
-function renderMessageText(text: string) {
-  const cardRegex = /\[\!\[([^\]]+)\]\(([^)]+)\)\]\(([^)]+)\)/g;
+// Download helper function for image inspection and saving
+async function downloadImage(url: string, filename = 'product-image.jpg') {
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error('CORS or network issue');
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    // Direct link fallback
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+
+function renderMessageText(text: string, onImageClick?: (url: string, alt?: string) => void) {
+  // Regex to match:
+  // 1. Linked image: [![alt](imgUrl)](linkUrl)
+  // 2. Standalone image: ![alt](imgUrl)
+  // 3. Standalone link: [text](linkUrl)
+  const masterRegex = /\[\!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)|\!\[([^\]]*)\]\(([^)]+)\)|\[([^\]]+)\]\(([^)]+)\)/g;
   
-  const parts = [];
+  const parts: Array<{
+    type: 'text' | 'linked_image' | 'image' | 'link';
+    content?: string;
+    alt?: string;
+    imageUrl?: string;
+    linkUrl?: string;
+    text?: string;
+    url?: string;
+  }> = [];
+  
   let lastIndex = 0;
   let match;
   
-  while ((match = cardRegex.exec(text)) !== null) {
-    const matchIndex = match.index;
-    
-    if (matchIndex > lastIndex) {
+  while ((match = masterRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
       parts.push({
         type: 'text',
-        content: text.substring(lastIndex, matchIndex)
+        content: text.substring(lastIndex, match.index)
       });
     }
     
-    parts.push({
-      type: 'product_card',
-      name: match[1],
-      image_url: match[2],
-      product_url: match[3]
-    });
+    if (match[1] !== undefined && match[2] && match[3]) {
+      // Linked image
+      parts.push({
+        type: 'linked_image',
+        alt: match[1] || 'Product Image',
+        imageUrl: match[2],
+        linkUrl: match[3]
+      });
+    } else if (match[4] !== undefined && match[5]) {
+      // Standalone image
+      parts.push({
+        type: 'image',
+        alt: match[4] || 'Product Image',
+        imageUrl: match[5]
+      });
+    } else if (match[6] && match[7]) {
+      // Standalone link
+      parts.push({
+        type: 'link',
+        text: match[6],
+        url: match[7]
+      });
+    }
     
-    lastIndex = cardRegex.lastIndex;
+    lastIndex = masterRegex.lastIndex;
   }
   
   if (lastIndex < text.length) {
@@ -84,63 +141,178 @@ function renderMessageText(text: string) {
     });
   }
 
-  if (parts.length === 0) {
-    return <span className="whitespace-pre-wrap">{text}</span>;
-  }
+  const renderInlineFormatted = (rawText: string) => {
+    const boldRegex = /\*\*([^*]+)\*\*/g;
+    const inlineParts = [];
+    let cur = 0;
+    let bMatch;
+    while ((bMatch = boldRegex.exec(rawText)) !== null) {
+      if (bMatch.index > cur) {
+        inlineParts.push(rawText.substring(cur, bMatch.index));
+      }
+      inlineParts.push(
+        <strong key={bMatch.index} className="font-semibold text-slate-900">
+          {bMatch[1]}
+        </strong>
+      );
+      cur = boldRegex.lastIndex;
+    }
+    if (cur < rawText.length) {
+      inlineParts.push(rawText.substring(cur));
+    }
+    return inlineParts;
+  };
 
   return (
-    <>
+    <div className="space-y-1">
       {parts.map((part, index) => {
         if (part.type === 'text') {
-          return <span key={index} className="whitespace-pre-wrap">{part.content}</span>;
-        } else {
+          return (
+            <span key={index} className="whitespace-pre-wrap">
+              {renderInlineFormatted(part.content || '')}
+            </span>
+          );
+        }
+
+        if (part.type === 'image') {
           return (
             <div 
               key={index}
-              className="bg-white/70 border border-slate-300/80 rounded-xl overflow-hidden shadow-lg flex flex-col sm:flex-row gap-4 p-3.5 my-3.5 hover:border-violet-500/40 hover:shadow-violet-950/10 transition-all duration-300 group/card text-left"
+              className="my-3 max-w-sm rounded-2xl overflow-hidden border border-slate-200 bg-slate-50/80 shadow-md group relative transition-all duration-300 hover:shadow-xl hover:border-violet-300"
             >
-              <div className="relative w-full sm:w-24 h-24 bg-slate-100 border border-slate-300/60 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center self-center">
-                {part.image_url && part.image_url !== 'N/A' ? (
-                  <img 
-                    src={part.image_url} 
-                    alt={part.name} 
-                    className="object-cover w-full h-full group-hover/card:scale-105 transition-transform duration-500"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLElement).style.display = 'none';
+              <div 
+                onClick={() => onImageClick?.(part.imageUrl!, part.alt)}
+                className="relative aspect-video sm:aspect-[4/3] w-full overflow-hidden cursor-pointer bg-slate-100 flex items-center justify-center"
+              >
+                <img 
+                  src={part.imageUrl} 
+                  alt={part.alt || 'Product Image'} 
+                  className="w-full h-full object-contain sm:object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+                
+                {/* Hover overlay with action buttons */}
+                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2.5 backdrop-blur-[2px]">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onImageClick?.(part.imageUrl!, part.alt);
                     }}
-                  />
-                ) : (
-                  <ShoppingBag className="w-8 h-8 text-slate-700 animate-pulse" />
-                )}
-              </div>
-              <div className="flex-1 flex flex-col justify-between py-1">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-bold text-violet-400 uppercase tracking-widest bg-violet-950/40 border border-violet-900/30 px-1.5 py-0.5 rounded">
-                      In Stock Match
-                    </span>
-                  </div>
-                  <h4 className="text-slate-900 font-bold text-sm mt-2 tracking-tight group-hover/card:text-violet-300 transition-colors">
-                    {part.name}
-                  </h4>
-                </div>
-                <div className="mt-3 flex items-center justify-start">
-                  <a 
-                    href={part.product_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-900 bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 px-3.5 py-1.5 rounded-lg transition-all shadow-md shadow-violet-950/20 active:scale-95"
+                    className="p-2 bg-white/95 hover:bg-white text-slate-900 rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center gap-1.5 text-xs font-semibold px-3"
+                    title="View Fullscreen"
                   >
-                    <span>View Product</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                    <Maximize2 className="w-3.5 h-3.5 text-violet-600" />
+                    <span>View Full</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadImage(part.imageUrl!, `${part.alt || 'product'}.jpg`);
+                    }}
+                    className="p-2 bg-white/95 hover:bg-white text-slate-900 rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center gap-1.5 text-xs font-semibold px-3"
+                    title="Download image"
+                  >
+                    <Download className="w-3.5 h-3.5 text-violet-600" />
+                    <span>Download</span>
+                  </button>
                 </div>
+              </div>
+              
+              {part.alt && part.alt !== 'Product Image' && (
+                <div className="p-2.5 text-xs font-medium text-slate-700 truncate border-t border-slate-200/80 bg-white/90 flex items-center justify-between">
+                  <span className="truncate">{part.alt}</span>
+                  <span className="text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                    Click to zoom
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        if (part.type === 'linked_image') {
+          return (
+            <div 
+              key={index}
+              className="my-3 max-w-sm rounded-2xl overflow-hidden border border-slate-200 bg-slate-50/80 shadow-md group relative transition-all duration-300 hover:shadow-xl hover:border-violet-300"
+            >
+              <div 
+                onClick={() => onImageClick?.(part.imageUrl!, part.alt)}
+                className="relative aspect-video sm:aspect-[4/3] w-full overflow-hidden cursor-pointer bg-slate-100 flex items-center justify-center"
+              >
+                <img 
+                  src={part.imageUrl} 
+                  alt={part.alt || 'Product Image'} 
+                  className="w-full h-full object-contain sm:object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+                
+                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2.5 backdrop-blur-[2px]">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onImageClick?.(part.imageUrl!, part.alt);
+                    }}
+                    className="p-2 bg-white/95 hover:bg-white text-slate-900 rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center gap-1.5 text-xs font-semibold px-3"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-violet-600" />
+                    <span>View Full</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadImage(part.imageUrl!, `${part.alt || 'product'}.jpg`);
+                    }}
+                    className="p-2 bg-white/95 hover:bg-white text-slate-900 rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center gap-1.5 text-xs font-semibold px-3"
+                  >
+                    <Download className="w-3.5 h-3.5 text-violet-600" />
+                    <span>Download</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-2.5 flex items-center justify-between border-t border-slate-200/80 bg-white/90 gap-2">
+                <span className="text-xs font-bold text-slate-800 truncate">{part.alt}</span>
+                <a
+                  href={part.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 px-3 py-1.5 rounded-lg shadow-sm transition-all flex-shrink-0 active:scale-95"
+                >
+                  <span>View Product</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             </div>
           );
         }
+
+        if (part.type === 'link') {
+          return (
+            <a
+              key={index}
+              href={part.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 font-semibold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100/90 border border-violet-200/70 px-3 py-1 rounded-lg text-xs my-1 transition-all shadow-xs active:scale-95 group/link"
+            >
+              <span>{part.text}</span>
+              <ExternalLink className="w-3 h-3 text-violet-500 group-hover/link:translate-x-0.5 transition-transform" />
+            </a>
+          );
+        }
+
+        return null;
       })}
-    </>
+    </div>
   );
 }
 
@@ -176,6 +348,18 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatImageInputRef = useRef<HTMLInputElement>(null);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ url: string; alt?: string } | null>(null);
+
+  // Close image modal with Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Initialize Anonymous Firebase Auth or Simulation Mode on Mount
   useEffect(() => {
@@ -744,7 +928,7 @@ export default function Home() {
       <header className="border-b border-slate-200/80 bg-white/80 backdrop-blur-md relative z-10 py-4 px-6 md:px-12 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center bg-transparent">
-            <img src="/logo.jpg" alt="Logo" className="w-8 h-12 object-contain rounded-full shadow-sm shadow-slate-200/60" />
+            <img src="/logo.jpg" alt="Logo" className="w-20 h-12 object-contain rounded-full shadow-sm shadow-slate-200/60" />
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 bg-clip-text text-transparent">
@@ -973,14 +1157,23 @@ export default function Home() {
 
                     {/* User Sent Image rendering */}
                     {msg.image && (
-                      <div className="relative max-w-[280px] rounded-xl overflow-hidden border border-slate-300/80 mb-1 bg-white/60 shadow-inner">
-                        <img src={msg.image} alt="Uploaded attachment" className="object-cover w-full h-auto max-h-48" />
+                      <div 
+                        onClick={() => setSelectedImage({ url: msg.image!, alt: 'Attached Image' })}
+                        className="relative max-w-[280px] rounded-xl overflow-hidden border border-slate-300/80 mb-1 bg-white/60 shadow-inner cursor-pointer group/userimg"
+                        title="Click to view fullscreen"
+                      >
+                        <img src={msg.image} alt="Uploaded attachment" className="object-cover w-full h-auto max-h-48 transition-transform duration-300 group-hover/userimg:scale-105" />
+                        <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover/userimg:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-white text-xs bg-slate-900/80 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 backdrop-blur-xs">
+                            <Maximize2 className="w-3.5 h-3.5 text-violet-400" /> View Full
+                          </span>
+                        </div>
                       </div>
                     )}
 
                     {/* Content */}
                     <div className="text-sm leading-relaxed selection:bg-violet-500/30 selection:text-slate-900">
-                      {renderMessageText(msg.text)}
+                      {renderMessageText(msg.text, (url, alt) => setSelectedImage({ url, alt }))}
                     </div>
 
                     {/* Source citations rendering */}
@@ -1132,8 +1325,77 @@ export default function Home() {
 
       {/* Premium minimal Footer */}
       <footer className="border-t border-slate-200/60 py-5 bg-white/60 relative z-10 text-center text-slate-600 text-xs">
-        <p>© 2026 KnowledgeChat AI. Zero-knowledge isolated RAG environment. All data resides in private sandbox containers.</p>
+        <p>© 2026 TulipTech AI. Zero-knowledge isolated RAG environment. All data resides in private sandbox containers.</p>
       </footer>
+
+      {/* Full-Screen Lightbox Modal for Image Zoom & Download */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6"
+          >
+            {/* Top Toolbar */}
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-5xl flex items-center justify-between text-white pb-3 border-b border-white/10 mb-3 sm:mb-4 px-2"
+            >
+              <div className="flex items-center gap-2 max-w-[55%]">
+                <span className="font-semibold text-xs sm:text-base text-slate-100 truncate">
+                  {selectedImage.alt || 'Product Image Preview'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => downloadImage(selectedImage.url, `${selectedImage.alt || 'product-image'}.jpg`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-medium transition-all active:scale-95 shadow-sm"
+                  title="Download image"
+                >
+                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-400" />
+                  <span>Download</span>
+                </button>
+                <a
+                  href={selectedImage.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-medium transition-all active:scale-95 shadow-sm"
+                  title="Open original in new tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-400" />
+                  <span className="hidden sm:inline">Open URL</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setSelectedImage(null)}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all ml-1 active:scale-95"
+                  title="Close preview (Esc)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Centered Large Image */}
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-5xl max-h-[82vh] flex items-center justify-center rounded-2xl overflow-hidden shadow-2xl bg-black/40 border border-white/10"
+            >
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.alt || 'Full size preview'}
+                className="max-h-[80vh] max-w-[94vw] sm:max-w-[85vw] object-contain rounded-xl"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
