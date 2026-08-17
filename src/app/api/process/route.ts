@@ -74,6 +74,44 @@ export async function POST(req: NextRequest) {
     // 4. Parse document to plain text
     const parsed = await parseDocument(fileBuffer, doc.filename);
     
+    // AI PDF Extraction Logic: Convert Unstructured Catalog to Structured Products
+    if ((!parsed.products || parsed.products.length === 0) && parsed.text && parsed.text.length > 50) {
+      const textLower = parsed.text.toLowerCase();
+      // Heuristic to detect unstructured catalogs
+      if (textLower.includes('price') && (textLower.includes('product') || textLower.includes('sku') || textLower.includes('image url'))) {
+        console.log(`Detected Unstructured Catalog. Extracting products using AI...`);
+        try {
+          if (openai) {
+            const extractResponse = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a data extraction expert. Extract all products from the provided text into a clean JSON array named "products". Each product must have: "name" (string), "price" (number), "sku" (string, generate a unique random 6-digit SKU if missing e.g. SKU-123456), "image_url" (string, if present), "description" (string, merge all specifications here), "category" (string, infer if missing), "color" (string).'
+                },
+                {
+                  role: 'user',
+                  content: parsed.text.substring(0, 30000) // cap at ~30k chars
+                }
+              ],
+              response_format: { type: 'json_object' },
+              temperature: 0.1
+            });
+            const extractedStr = extractResponse.choices[0]?.message?.content?.trim();
+            if (extractedStr) {
+              const extractedJson = JSON.parse(extractedStr);
+              if (extractedJson.products && Array.isArray(extractedJson.products) && extractedJson.products.length > 0) {
+                console.log(`AI successfully extracted ${extractedJson.products.length} products from unstructured text.`);
+                parsed.products = extractedJson.products;
+              }
+            }
+          }
+        } catch (extractErr) {
+          console.error(`AI Catalog Extraction failed:`, extractErr);
+        }
+      }
+    }
+    
     // If the parsed document contains structured products, index them directly into products table
     if (parsed.products && parsed.products.length > 0) {
       console.log(`Processing Catalog with ${parsed.products.length} products`);
@@ -148,7 +186,7 @@ export async function POST(req: NextRequest) {
 
       // Construct text representation for each product
       const textsToEmbed = productsToProcess.map((item: any) => {
-        return `Name: ${item.name} | SKU: ${item.sku} | Category: ${item.category || 'N/A'} | Price: $${item.price} | Color: ${item.color || 'N/A'} | Size: ${item.size || 'N/A'} | Description: ${item.description || 'N/A'}`;
+        return `Name: ${item.name} | SKU: ${item.sku} | Category: ${item.category || 'N/A'} | Price: ${item.price} | Color: ${item.color || 'N/A'} | Size: ${item.size || 'N/A'} | Description: ${item.description || 'N/A'}`;
       });
 
       // Generate all embeddings in high-speed batches
@@ -160,7 +198,7 @@ export async function POST(req: NextRequest) {
         sku: item.sku,
         name: item.name,
         price: item.price,
-        currency: item.currency || 'USD',
+        currency: item.currency || null,
         category: item.category || null,
         color: item.color || null,
         size: item.size || null,

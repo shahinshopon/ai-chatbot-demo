@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
           .map((p: any, idx: number) => {
             return `${idx + 1}. Name: "${p.name}"
    - SKU: "${p.sku}"
-   - Price: $${p.price} ${p.currency || 'USD'}
+   - Price: ${p.price} ${p.currency || ''}
    - Category: "${p.category || 'N/A'}"
    - Color: "${p.color || 'N/A'}"
    - In Stock: ${p.in_stock ? 'Yes' : 'No'}
@@ -356,7 +356,7 @@ export async function POST(req: NextRequest) {
           return `[Source: Catalog ${catFilename} | SKU: ${p.sku}]
 Product Name: ${p.name}
 Product Image URL (IMPORTANT - must display this as markdown image): ${p.image_url || 'N/A'}
-Price: $${p.price} ${p.currency || 'USD'}
+Price: ${p.price} ${p.currency || ''}
 Category: ${p.category || 'N/A'}
 Color: ${p.color || 'N/A'}
 Size: ${p.size || 'N/A'}
@@ -503,11 +503,12 @@ ${productContext || (image_url ? 'User uploaded an image. Ignore this empty bloc
               });
               const cleanUrl = p.image_url.trim().replace(/[\.\,]$/, '');
               // Use an Image Proxy (wsrv.nl) to bypass Fabrilife/Cloudflare bot-protection
-              // This guarantees OpenAI won't hit a 400 Timeout when downloading the image.
-              const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(cleanUrl)}`;
+              // But DO NOT proxy Firebase Storage URLs because they are bot-free and wsrv.nl times out on them
+              const isFirebase = cleanUrl.includes('firebasestorage.googleapis.com');
+              const finalUrl = isFirebase ? cleanUrl : `https://wsrv.nl/?url=${encodeURIComponent(cleanUrl)}`;
               userMessageContent.push({
                 type: 'image_url',
-                image_url: { url: proxyUrl, detail: 'auto' }
+                image_url: { url: finalUrl, detail: 'auto' }
               });
             }
           });

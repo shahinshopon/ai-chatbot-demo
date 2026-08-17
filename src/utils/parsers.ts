@@ -413,7 +413,7 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
     const product_url = urlIdx !== -1 && row[urlIdx] ? row[urlIdx] : undefined;
 
     products.push({
-      sku, name, price, currency: 'USD', category, color, size, inStock, description: finalDescription, image_url, product_url,
+      sku, name, price, currency: undefined, category, color, size, inStock, description: finalDescription, image_url, product_url,
     });
 
     summaryText += `Product: ${name} (SKU: ${sku}) | Price: ${price} | Category: ${category || 'None'} | Description: ${finalDescription || 'No description'}\n`;
@@ -578,7 +578,7 @@ async function parseJson(buffer: Buffer): Promise<ParsedDocument> {
       sku,
       name,
       price,
-      currency: item.currency || 'USD',
+      currency: item.currency || undefined,
       category,
       color,
       size,
