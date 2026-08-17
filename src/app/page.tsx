@@ -1133,10 +1133,10 @@ export default function Home() {
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl p-4 shadow-lg flex flex-col gap-2 relative group ${
+                    className={`max-w-[85%] relative group flex flex-col ${
                       msg.role === 'user'
-                        ? 'bg-slate-900 text-white rounded-br-none shadow-slate-900/10'
-                        : 'bg-white border border-slate-200 text-slate-900 rounded-bl-none'
+                        ? (msg.image ? 'items-end' : 'gap-2 bg-slate-900 text-white p-3 rounded-2xl rounded-br-none shadow-lg shadow-slate-900/10')
+                        : 'gap-2 bg-white border border-slate-200 text-slate-900 p-3 rounded-2xl rounded-bl-none shadow-lg'
                     }`}
                   >
                     
@@ -1144,7 +1144,7 @@ export default function Home() {
                     {msg.role === 'assistant' && (
                       <button
                         onClick={() => handleCopyToClipboard(msg.text, msg.id)}
-                        className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1 rounded-md bg-white/60 border border-slate-300 text-slate-600 hover:text-slate-900 transition-opacity"
+                        className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 p-1 rounded-md bg-white/60 border border-slate-300 text-slate-600 hover:text-slate-900 transition-opacity z-10"
                         title="Copy to clipboard"
                       >
                         {copiedId === msg.id ? (
@@ -1159,7 +1159,7 @@ export default function Home() {
                     {msg.image && (
                       <div 
                         onClick={() => setSelectedImage({ url: msg.image!, alt: 'Attached Image' })}
-                        className="relative max-w-[280px] rounded-xl overflow-hidden border border-slate-300/80 mb-1 bg-white/60 shadow-inner cursor-pointer group/userimg"
+                        className={`relative max-w-[280px] overflow-hidden cursor-pointer group/userimg rounded-[16px] border border-slate-200/20 ${msg.text ? 'rounded-br-sm' : 'rounded-br-sm shadow-sm'}`}
                         title="Click to view fullscreen"
                       >
                         <img src={msg.image} alt="Uploaded attachment" className="object-cover w-full h-auto max-h-48 transition-transform duration-300 group-hover/userimg:scale-105" />
@@ -1168,39 +1168,53 @@ export default function Home() {
                             <Maximize2 className="w-3.5 h-3.5 text-violet-400" /> View Full
                           </span>
                         </div>
+                        {/* Timestamp overlay when image ONLY */}
+                        {!msg.text && msg.role === 'user' && (
+                           <span suppressHydrationWarning className="absolute bottom-1.5 right-1.5 text-[9px] text-white/90 bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded-md font-mono z-10 pointer-events-none">
+                             {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                           </span>
+                        )}
                       </div>
                     )}
 
-                    {/* Content */}
-                    <div className="text-sm leading-relaxed selection:bg-violet-500/30 selection:text-slate-900">
-                      {renderMessageText(msg.text, (url, alt) => setSelectedImage({ url, alt }))}
-                    </div>
-
-                    {/* Source citations rendering */}
-                    {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-3.5 pt-3 border-t border-slate-300/80 flex flex-col gap-1.5">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                          References Used ({msg.sources.length})
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {msg.sources.map((src, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-white/80 border border-slate-300 rounded-md text-indigo-400"
-                              title={src.filename}
-                            >
-                              <FileText className="w-3 h-3 text-slate-500" />
-                              <span className="max-w-[120px] truncate">{src.filename}</span>
-                              {src.page && <span className="text-slate-500">p.{src.page}</span>}
-                            </span>
-                          ))}
+                    {/* Content Block (Text, Sources, Timestamp) */}
+                    {(msg.text || msg.role === 'assistant') && (
+                      <div className={`${
+                        msg.role === 'user' && msg.image
+                          ? 'bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl rounded-br-none shadow-xl shadow-slate-900/20 flex flex-col gap-2 relative z-10 -mt-4 border border-slate-700/50 w-full min-w-[120px]'
+                          : 'flex flex-col gap-2 w-full'
+                      }`}>
+                        <div className="text-sm leading-relaxed selection:bg-violet-500/30 selection:text-slate-900">
+                          {renderMessageText(msg.text, (url, alt) => setSelectedImage({ url, alt }))}
                         </div>
+
+                        {/* Source citations rendering */}
+                        {/* {msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-3.5 pt-3 border-t border-slate-300/80 flex flex-col gap-1.5">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                              References Used ({msg.sources.length})
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {msg.sources.map((src, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium bg-white/80 border border-slate-300 rounded-md text-indigo-400"
+                                  title={src.filename}
+                                >
+                                  <FileText className="w-3 h-3 text-slate-500" />
+                                  <span className="max-w-[120px] truncate">{src.filename}</span>
+                                  {src.page && <span className="text-slate-500">p.{src.page}</span>}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )} */}
+
+                        <span suppressHydrationWarning className={`text-[9px] self-end font-mono -mt-2 ${msg.role === 'user' ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                     )}
-
-                    <span suppressHydrationWarning className={`text-[9px] self-end font-mono mt-1 ${msg.role === 'user' ? 'text-slate-400' : 'text-slate-500'}`}>
-                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
                   </div>
                 </motion.div>
               ))}

@@ -39,6 +39,57 @@ export interface ParsedDocument {
 }
 
 /**
+ * Normalizes various date formats to ISO format (YYYY-MM-DD)
+ * Handles: DD/MM/YY, DD/MM/YYYY, DD-MM-YY, DD-MM-YYYY, YYYY-MM-DD, MM/DD/YY, MM/DD/YYYY
+ */
+function normalizeDateFormat(text: string): string {
+  let normalized = text;
+
+  // Pattern 1: DD/MM/YY or DD-MM-YY (European format with 2-digit year)
+  normalized = normalized.replace(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})\b/g, (match, day, month, year) => {
+    const d = parseInt(day, 10);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    // If day > 12, assume it's DD/MM format
+    if (d > 12) {
+      const fullYear = y < 30 ? 2000 + y : 1900 + y;
+      return `${fullYear}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    // Otherwise, try to infer from context or assume DD/MM
+    const fullYear = y < 30 ? 2000 + y : 1900 + y;
+    return `${fullYear}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  });
+
+  // Pattern 2: DD/MM/YYYY or DD-MM-YYYY (European format with 4-digit year)
+  normalized = normalized.replace(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/g, (match, day, month, year) => {
+    const d = parseInt(day, 10);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    if (d > 12) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  });
+
+  return normalized;
+}
+
+/**
+ * Detects if tabular data is likely a sales record (Date, Customer/ID, Product, Price)
+ * Returns true if headers suggest sales transaction data
+ */
+function isSalesRecordData(headers: string[]): boolean {
+  const headerLower = headers.map(h => h.toLowerCase().trim());
+  
+  const hasDateCol = headerLower.some(h => ['date', 'time', 'datetime', 'timestamp'].some(term => h.includes(term)));
+  const hasCustomerCol = headerLower.some(h => ['name', 'customer', 'id', 'account', 'client', 'buyer'].some(term => h.includes(term)));
+  const hasPriceCol = headerLower.some(h => ['price', 'amount', 'cost', 'total', 'value'].some(term => h.includes(term)));
+  
+  // Sales record data has date + customer + price columns
+  return hasDateCol && hasCustomerCol && hasPriceCol;
+}
+
+/**
  * Parses file buffer into plain text based on file format.
  * 
  * @param buffer The file buffer to parse.
@@ -92,6 +143,7 @@ async function parseDocx(buffer: Buffer): Promise<ParsedDocument> {
 
 /**
  * Parses PDF files using pdf-parse with fallback to pure text stream parser.
+ * Also normalizes dates in extracted text.
  */
 async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
   const errors: string[] = [];
@@ -114,8 +166,9 @@ async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
       try {
         const data = await parser.getText();
         if (data && data.text && data.text.trim().length > 0) {
+          const normalizedText = normalizeDateFormat(data.text);
           return {
-            text: data.text,
+            text: normalizedText,
             pageCount: data.total || 1,
           };
         }
@@ -137,8 +190,9 @@ async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
     if (pdfParseFn) {
       const data = await pdfParseFn(buffer);
       if (data && data.text && data.text.trim().length > 0) {
+        const normalizedText = normalizeDateFormat(data.text);
         return {
-          text: data.text,
+          text: normalizedText,
           pageCount: data.numpages || 1,
         };
       }
@@ -167,8 +221,9 @@ async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
     });
 
     if (data && data.trim().length > 0) {
+      const normalizedText = normalizeDateFormat(data.replace(/%20/g, ' ').replace(/%2C/g, ',').replace(/%3A/g, ':'));
       return {
-        text: data.replace(/%20/g, ' ').replace(/%2C/g, ',').replace(/%3A/g, ':'), // Basic decoding if needed
+        text: normalizedText,
         pageCount: 1, // Simple approximation
       };
     }
@@ -182,8 +237,9 @@ async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
     const rawText = extractRawPdfText(buffer);
     if (rawText && rawText.trim().length > 0) {
       console.log('Successfully extracted PDF text using raw stream fallback.');
+      const normalizedText = normalizeDateFormat(rawText);
       return {
-        text: rawText,
+        text: normalizedText,
         pageCount: 1,
       };
     }
@@ -245,13 +301,17 @@ function extractRawPdfText(buffer: Buffer): string {
 }
 
 /**
- * Parses CSV catalog documents.
+ * Parses CSV catalog documents with date normalization and sales record detection.
  */
 async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
   const content = buffer.toString('utf-8');
-  const rows = parseCSVLines(content);
+  
+  // Normalize dates in content
+  const normalizedContent = normalizeDateFormat(content);
+  
+  const rows = parseCSVLines(normalizedContent);
   if (rows.length < 2) {
-    return { text: content, pageCount: 1, products: [] };
+    return { text: normalizedContent, pageCount: 1, products: [] };
   }
 
   // Look for headers in the first 3 rows to handle poorly formatted CSVs
@@ -264,6 +324,16 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
   }
 
   const headers = rows[headerRowIdx].map(h => h.toLowerCase());
+  
+  // Check if this is sales record data
+  if (isSalesRecordData(rows[headerRowIdx])) {
+    const products = extractSalesRecordsAsProductsFromRows(rows, headerRowIdx);
+    let summaryText = '';
+    for (const row of rows) {
+      if (row.join('').trim()) summaryText += row.join(', ') + '\n';
+    }
+    return { text: summaryText, pageCount: 1, products };
+  }
   
   const findIndex = (terms: string[]) => {
     return headers.findIndex(h => terms.some(t => h.includes(t)));
@@ -284,6 +354,10 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
 
   const skuIdx = findIndex(['sku', 'id', 'handle', 'code']);
   const priceIdx = findIndex(['price', 'cost', 'amount', 'value']);
+  const originalPriceIdx = findIndex(['original price', 'regular price', 'msrp', 'was']);
+  const discountPriceIdx = findIndex(['discount price', 'sale price', 'now']);
+  const paidIdx = findIndex(['paid', 'advance']);
+  const dueIdx = findIndex(['due', 'pending', 'discount']);
   const categoryIdx = findIndex(['category', 'type', 'tags', 'department']);
   const colorIdx = findIndex(['color', 'colour']);
   const sizeIdx = findIndex(['size']);
@@ -322,15 +396,27 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
       }
     }
 
-    const description = descriptionIdx !== -1 && row[descriptionIdx] ? row[descriptionIdx] : undefined;
+    let description = descriptionIdx !== -1 && row[descriptionIdx] ? row[descriptionIdx] : '';
+    const originalPrice = originalPriceIdx !== -1 && row[originalPriceIdx] ? row[originalPriceIdx] : '';
+    const discountPrice = discountPriceIdx !== -1 && row[discountPriceIdx] ? row[discountPriceIdx] : '';
+    const paid = paidIdx !== -1 && row[paidIdx] ? row[paidIdx] : '';
+    const due = dueIdx !== -1 && row[dueIdx] ? row[dueIdx] : '';
+
+    if (originalPrice) description += (description ? ' | ' : '') + `Original Price: ${originalPrice}`;
+    if (discountPrice) description += (description ? ' | ' : '') + `Discount Price: ${discountPrice}`;
+    if (paid) description += (description ? ' | ' : '') + `Paid: ${paid}`;
+    if (due) description += (description ? ' | ' : '') + `Due/Discount: ${due}`;
+
+    const finalDescription = description.trim() === '' ? undefined : description;
+
     const image_url = imageIdx !== -1 && row[imageIdx] ? row[imageIdx] : undefined;
     const product_url = urlIdx !== -1 && row[urlIdx] ? row[urlIdx] : undefined;
 
     products.push({
-      sku, name, price, currency: 'USD', category, color, size, inStock, description, image_url, product_url,
+      sku, name, price, currency: 'USD', category, color, size, inStock, description: finalDescription, image_url, product_url,
     });
 
-    summaryText += `Product: ${name} (SKU: ${sku}) | Price: ${price} | Category: ${category || 'None'} | Description: ${description || 'No description'}\n`;
+    summaryText += `Product: ${name} (SKU: ${sku}) | Price: ${price} | Category: ${category || 'None'} | Description: ${finalDescription || 'No description'}\n`;
   }
 
   // If we skipped everything because it was badly formatted but had a header, just dump it as raw text
@@ -347,6 +433,57 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
     pageCount: 1,
     products,
   };
+}
+
+/**
+ * Extracts sales records from parsed row array and converts to structured products
+ */
+function extractSalesRecordsAsProductsFromRows(rows: string[][], headerRowIdx: number): ParsedProduct[] {
+  const headers = rows[headerRowIdx];
+  const products: ParsedProduct[] = [];
+  
+  // Find column indices
+  const dateIdx = headers.findIndex(h => ['date', 'time', 'datetime', 'timestamp'].some(term => h.toLowerCase().includes(term)));
+  const customerIdx = headers.findIndex(h => ['name', 'customer', 'id', 'account', 'client', 'buyer'].some(term => h.toLowerCase().includes(term)));
+  const productIdx = headers.findIndex(h => ['product', 'item', 'service', 'description'].some(term => h.toLowerCase().includes(term)));
+  const priceIdx = headers.findIndex(h => ['price', 'amount', 'cost', 'total', 'value'].some(term => h.toLowerCase().includes(term)));
+  const quantityIdx = headers.findIndex(h => ['qty', 'quantity', 'count', 'units'].some(term => h.toLowerCase().includes(term)));
+
+  // Process each data row as a sales transaction
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length === 0 || !row.join('').trim()) continue;
+
+    const date = dateIdx !== -1 ? row[dateIdx] : '';
+    const customer = customerIdx !== -1 ? row[customerIdx] : '';
+    const productName = productIdx !== -1 ? row[productIdx] : '';
+    const priceStr = priceIdx !== -1 ? row[priceIdx] : '0';
+    const quantityStr = quantityIdx !== -1 ? row[quantityIdx] : '1';
+
+    if (!customer || !date) continue;
+
+    const price = parseFloat(priceStr.replace(/[^0-9.]/g, '')) || 0;
+    const quantity = parseInt(quantityStr, 10) || 1;
+
+    // Create unique SKU from date + customer ID
+    const sanitizedCustomer = customer.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10);
+    const sku = `${date}-${sanitizedCustomer}-${String(i).padStart(3, '0')}`;
+
+    // Build comprehensive description from all row data
+    const description = `Sales Record - Date: ${date}, Customer: ${customer}, Item: ${productName || 'N/A'}, Quantity: ${quantity}, Price per Unit: ${price} BDT`;
+
+    products.push({
+      sku,
+      name: `${customer} - ${productName || 'Transaction'} (${date})`,
+      price: price * quantity, // Total price for transaction
+      currency: 'BDT',
+      category: 'Sales Record',
+      description,
+      inStock: true,
+    });
+  }
+
+  return products;
 }
 
 /**
@@ -420,7 +557,20 @@ async function parseJson(buffer: Buffer): Promise<ParsedDocument> {
     const color = item.color || item.colour || undefined;
     const size = item.size || undefined;
     const inStock = item.in_stock !== false && item.inStock !== false && item.available !== false;
-    const description = item.description || item.body || (Array.isArray(item.flavorProfile) ? item.flavorProfile.join(', ') : undefined);
+    let description = item.description || item.body || (Array.isArray(item.flavorProfile) ? item.flavorProfile.join(', ') : '');
+    
+    const originalPrice = item.original_price || item.originalPrice || item.regular_price || item.msrp || '';
+    const discountPrice = item.discount_price || item.discountPrice || item.sale_price || '';
+    const paid = item.paid || item.advance || '';
+    const due = item.due || item.pending || item.discount || '';
+
+    if (originalPrice) description += (description ? ' | ' : '') + `Original Price: ${originalPrice}`;
+    if (discountPrice) description += (description ? ' | ' : '') + `Discount Price: ${discountPrice}`;
+    if (paid) description += (description ? ' | ' : '') + `Paid: ${paid}`;
+    if (due) description += (description ? ' | ' : '') + `Due/Discount: ${due}`;
+
+    const finalDescription = description.trim() === '' ? undefined : description;
+
     const image_url = item.image_url || item.image || item.thumbnail || undefined;
     const product_url = item.product_url || item.url || item.link || undefined;
 
@@ -433,12 +583,12 @@ async function parseJson(buffer: Buffer): Promise<ParsedDocument> {
       color,
       size,
       inStock,
-      description,
+      description: finalDescription,
       image_url,
       product_url,
     });
 
-    summaryText += `Product: ${name} (SKU: ${sku}) | Price: $${price} | Category: ${category || 'None'} | Description: ${description || 'No description'}\n`;
+    summaryText += `Product: ${name} (SKU: ${sku}) | Price: $${price} | Category: ${category || 'None'} | Description: ${finalDescription || 'No description'}\n`;
   }
 
   return {
@@ -452,7 +602,7 @@ async function parseJson(buffer: Buffer): Promise<ParsedDocument> {
 
 
 /**
- * Parses XLSX Excel documents.
+ * Parses XLSX Excel documents with date normalization and sales record detection.
  */
 async function parseXlsx(buffer: Buffer): Promise<ParsedDocument> {
   let workbook;
@@ -463,10 +613,22 @@ async function parseXlsx(buffer: Buffer): Promise<ParsedDocument> {
   }
 
   let text = '';
+  const products: ParsedProduct[] = [];
+
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName];
     text += `--- Sheet: ${sheetName} ---\n`;
-    const csvStr = xlsx.utils.sheet_to_csv(worksheet);
+    let csvStr = xlsx.utils.sheet_to_csv(worksheet);
+    
+    // Normalize dates in the sheet
+    csvStr = normalizeDateFormat(csvStr);
+    
+    // Try to extract structured products from sales data
+    const sheetProducts = extractSalesRecordsAsProducts(csvStr, sheetName);
+    if (sheetProducts.length > 0) {
+      products.push(...sheetProducts);
+    }
+    
     text += csvStr + '\n\n';
   }
 
@@ -474,5 +636,91 @@ async function parseXlsx(buffer: Buffer): Promise<ParsedDocument> {
     throw new Error('Excel document contains no extractable text');
   }
 
-  return { text, pageCount: workbook.SheetNames.length };
+  return { text, pageCount: workbook.SheetNames.length, products };
+}
+
+/**
+ * Extracts sales transaction records from CSV-formatted data and converts them to structured products.
+ * Each transaction becomes a unique product with SKU based on date + customer ID.
+ */
+function extractSalesRecordsAsProducts(csvStr: string, sheetName: string): ParsedProduct[] {
+  const rows = csvStr.split('\n').map(line => parseCSVLine(line)).filter(r => r.length > 0);
+  
+  if (rows.length < 2) return [];
+
+  const headers = rows[0].map(h => h.toLowerCase().trim());
+  
+  // Check if this looks like sales record data
+  if (!isSalesRecordData(headers)) {
+    return [];
+  }
+
+  const products: ParsedProduct[] = [];
+  
+  // Find column indices
+  const dateIdx = headers.findIndex(h => ['date', 'time', 'datetime', 'timestamp'].some(term => h.includes(term)));
+  const customerIdx = headers.findIndex(h => ['name', 'customer', 'id', 'account', 'client', 'buyer'].some(term => h.includes(term)));
+  const productIdx = headers.findIndex(h => ['product', 'item', 'service', 'description'].some(term => h.includes(term)));
+  const priceIdx = headers.findIndex(h => ['price', 'amount', 'cost', 'total', 'value'].some(term => h.includes(term)));
+  const quantityIdx = headers.findIndex(h => ['qty', 'quantity', 'count', 'units'].some(term => h.includes(term)));
+
+  // Process each data row as a sales transaction
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length === 0 || !row.join('').trim()) continue;
+
+    const date = dateIdx !== -1 ? row[dateIdx] : '';
+    const customer = customerIdx !== -1 ? row[customerIdx] : '';
+    const productName = productIdx !== -1 ? row[productIdx] : '';
+    const priceStr = priceIdx !== -1 ? row[priceIdx] : '0';
+    const quantityStr = quantityIdx !== -1 ? row[quantityIdx] : '1';
+
+    if (!customer || !date) continue;
+
+    const price = parseFloat(priceStr.replace(/[^0-9.]/g, '')) || 0;
+    const quantity = parseInt(quantityStr, 10) || 1;
+
+    // Create unique SKU from date + customer ID
+    const sanitizedCustomer = customer.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10);
+    const sku = `${date}-${sanitizedCustomer}-${String(i).padStart(3, '0')}`;
+
+    // Build comprehensive description from all row data
+    const description = `Sales Record - Date: ${date}, Customer: ${customer}, Item: ${productName || 'N/A'}, Quantity: ${quantity}, Price per Unit: ${price} BDT`;
+
+    products.push({
+      sku,
+      name: `${customer} - ${productName || 'Transaction'} (${date})`,
+      price: price * quantity, // Total price for transaction
+      currency: 'BDT',
+      category: 'Sales Record',
+      description,
+      inStock: true,
+    });
+  }
+
+  return products;
+}
+
+/**
+ * Simple CSV line parser handling quoted fields
+ */
+function parseCSVLine(line: string): string[] {
+  if (!line.trim()) return [];
+  const row: string[] = [];
+  let inQuotes = false;
+  let currentToken = '';
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      row.push(currentToken.trim());
+      currentToken = '';
+    } else {
+      currentToken += char;
+    }
+  }
+  row.push(currentToken.trim());
+  return row;
 }

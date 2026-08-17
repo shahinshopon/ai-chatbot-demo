@@ -7,29 +7,45 @@ export const dynamic = 'force-dynamic';
 function stripMarkdownFormatting(text: string): string {
   if (!text) return text;
   
-  // 1. Temporarily isolate the custom product preview cards to protect their format
+  // 1. Temporarily isolate markdown images to preserve them
+  const imagePlaceholderMap = new Map<string, string>();
+  let imagePlaceholderCounter = 0;
+  
+  const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  let cleanedText = text.replace(imageRegex, (match) => {
+    const placeholder = `@@@IMAGEP${imagePlaceholderCounter++}@@@`;
+    imagePlaceholderMap.set(placeholder, match);
+    return placeholder;
+  });
+  
+  // 2. Temporarily isolate the custom product preview cards to protect their format
   const cardPlaceholderMap = new Map<string, string>();
-  let placeholderCounter = 0;
+  let cardPlaceholderCounter = 0;
   
   const cardRegex = /\[\!\[([^\]]+)\]\(([^)]+)\)\]\(([^)]+)\)/g;
-  let cleanedText = text.replace(cardRegex, (match) => {
-    const placeholder = `__CARD_PLACEHOLDER_${placeholderCounter++}__`;
+  cleanedText = cleanedText.replace(cardRegex, (match) => {
+    const placeholder = `@@@CARDP${cardPlaceholderCounter++}@@@`;
     cardPlaceholderMap.set(placeholder, match);
     return placeholder;
   });
   
-  // 2. Remove markdown header hashes (#, ##, ###) at the beginning of any lines
+  // 3. Remove markdown header hashes (#, ##, ###) at the beginning of any lines
   cleanedText = cleanedText.replace(/^#{1,6}\s+/gm, '');
   
-  // 3. Strip bold and italic indicators (e.g., **, *, __, _) while preserving contained text
+  // 4. Strip bold and italic indicators (e.g., **, *, __, _) while preserving contained text
   cleanedText = cleanedText.replace(/\*\*([^*]+)\*\*/g, '$1');
   cleanedText = cleanedText.replace(/\*([^*]+)\*/g, '$1');
   cleanedText = cleanedText.replace(/__([^_]+)__/g, '$1');
   cleanedText = cleanedText.replace(/_([^_]+)_/g, '$1');
   
-  // 4. Restore the original custom product card links
+  // 5. Restore the original custom product card links
   cardPlaceholderMap.forEach((originalCard, placeholder) => {
     cleanedText = cleanedText.replace(placeholder, originalCard);
+  });
+  
+  // 6. Restore markdown images
+  imagePlaceholderMap.forEach((originalImage, placeholder) => {
+    cleanedText = cleanedText.replace(placeholder, originalImage);
   });
   
   return cleanedText;
@@ -335,14 +351,14 @@ export async function POST(req: NextRequest) {
         .map((p: any) => {
           const catFilename = p.document_id ? (docIdToNameMap.get(p.document_id) || 'Catalog') : 'Product Catalog';
           return `[Source: Catalog ${catFilename} | SKU: ${p.sku}]
-Name: ${p.name}
+Product Name: ${p.name}
+Product Image URL (IMPORTANT - must display this as markdown image): ${p.image_url || 'N/A'}
 Price: $${p.price} ${p.currency || 'USD'}
 Category: ${p.category || 'N/A'}
 Color: ${p.color || 'N/A'}
 Size: ${p.size || 'N/A'}
 In Stock: ${p.in_stock ? 'Yes' : 'No'}
 Description: ${p.description || 'N/A'}
-Product Image URL: ${p.image_url || 'N/A'}
 Product Detail Page URL: ${p.product_url || 'N/A'}`;
         })
         .join('\n\n---\n\n');
@@ -392,16 +408,48 @@ Strict Rules:
 1. Never invent or guess information.
 2. If the answer cannot be found in the provided context, product catalog, or catalog metadata, explain politely in the same customer care tone that you cannot find that information in the uploaded documents.
 3. Always answer clearly and concisely.
-4. When suggesting products from the product catalog, ALWAYS:
-   - State the product name, SKU, and exact price.
-   - Provide a short description explaining why it matches.
-   - If there is an image URL and detail page URL, display a rich clickable markdown product preview card exactly like this:
-     [![Name](image_url)](product_url)
-     *(If image_url or product_url is not available or is 'N/A', do not render the markdown card image link, just display the product detail fields).*
+3.5. PRODUCT DISPLAY INSTRUCTION: When showing any product to the user, ALWAYS follow this exact order:
+   a) Product name
+   b) SKU
+   c) Price (and Original Price, Discount Price, Paid, Due if available)
+   d) PRODUCT IMAGE in markdown format: ![ProductName](image_url) (ONLY IF image_url exists)
+   e) Category and other details
+   f) Description
+   g) View Product link at the end (ONLY IF product_url exists)
+   
+   The image MUST ALWAYS appear BEFORE any links.
+4. When suggesting products from the product catalog, ALWAYS format them dynamically based ONLY on the available data.
+   Follow this exact line-by-line structure, but SKIP any line where the data is missing, null, or 'N/A':
+   
+   ProductName
+   SKU: [SKU value]
+   Price: [Price value]
+   [IF Original Price exists] Original Price: [Value]
+   [IF Discount Price exists] Discount Price: [Value]
+   [IF Paid exists] Paid: [Value]
+   [IF Due exists] Due: [Value]
+   [IF image_url exists AND is not N/A, output EXACTLY this markdown:] ![ProductName](image_url)
+   
+   [IF Category exists and is not N/A] Category: [Category value]
+   [IF Description exists AND contains actual descriptive text, output:] Description: [Description text]
+   
+   [IF product_url exists] [View Full Product](product_url)
+   
+   CRITICAL RULES FOR MISSING DATA:
+   - NEVER output ![Image Not Available](). If the image_url is missing, simply DO NOT include the image markdown line.
+   - If the "Description" field only contains pricing metadata (like "Original Price: 2100" or "Discount: 10%"), extract that metadata into the pricing section above and DO NOT output the word "Description:".
+   - Only include lines that have real data. Never print "N/A" or "null".
 5. Quote important terms, SKUs, or numerical values exactly.
 6. Do not mention "provided context", "retrieved chunks", or "catalog context" directly to the user. Talk naturally as if you are reading their catalog and files.
 7. Visual Catalog Matching: If the user uploads an image, visually compare it against the product "Image URL" values and photos in the catalog metadata. If the uploaded image matches or closely resembles the product photo at that URL, consider it a 100% exact match for that product. In this case, you MUST identify it directly as that product (e.g., "Yes, this is the Aero Cushion Sneakers!"), and state that it is in stock and available. Do NOT say that you cannot find it, and do NOT say it is a different product! For example, the pastel Nike Air Force 1 shoe image corresponds exactly to "Aero Cushion Sneakers" (SKU: SHO-8812), and the denim clothing/jacket image corresponds to "Vintage Denim Jacket" (SKU: SHI-4421).
-8. Strict Clean Formatting Rule: You MUST NEVER use markdown indicators for bolding (do not use '**' or '__'), italics (do not use '*' or '_'), or headers (do not use '#', '##', or '###'). All text must be generated as clean, natural plain text, using normal capital letters, natural paragraph breaks (newlines), and standard bullet points (e.g., '-' or '•' or '1.', '2.'). The ONLY exception is the product card format [![Name](image_url)](product_url) which you must generate exactly as specified. Do not use asterisks or hashes inside it.
+8. Strict Clean Formatting Rule: You MUST NEVER use markdown indicators for bolding (do not use '**' or '__'), italics (do not use '*' or '_'), or headers (do not use '#', '##', or '###'). All text must be generated as clean, natural plain text, using normal capital letters, natural paragraph breaks (newlines), and standard bullet points (e.g., '-' or '•' or '1.', '2.'). The ONLY EXCEPTIONS are:
+   - Markdown images for product pictures: ![ProductName](image_url) - these MUST be included when showing products
+   - Markdown links for product pages: [View Full Product](product_url) - these MUST be included when product URLs are available
+   - Do not use asterisks or hashes inside these markdown elements.
+9. Date Format Flexibility: Treat these date formats as equivalent and search across all variations when answering about specific dates:
+   - 03/09/24 = 03/09/2024 = 2024-09-03 = 9th March 2024 (all refer to the same date)
+   - DD/MM/YY format is used in the documents. When user asks about a date, find matching records regardless of whether they use 2-digit or 4-digit year format.
+   - Always show results for the requested date even if the format differs (e.g., if they ask "03/09/2024" and you have "03/09/24" in your data, include those results).
 
 ${languageInstructions}
 
