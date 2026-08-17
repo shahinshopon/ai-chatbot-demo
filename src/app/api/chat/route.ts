@@ -218,14 +218,17 @@ export async function POST(req: NextRequest) {
 
     // Fetch basic summary of products for global catalog queries (e.g., listing all items)
     let productSummary = 'No products in catalog.';
+    let summaryData: any[] = [];
+    
     if (totalProductsCount && totalProductsCount > 0) {
-      const { data: summaryData } = await supabase!
+      const { data: _summaryData } = await supabase!
         .from('products')
         .select('sku, name, price, currency, category, color, description, image_url, product_url, in_stock')
         .eq('user_uid', user_uid)
         .limit(50);
       
-      if (summaryData && summaryData.length > 0) {
+      if (_summaryData && _summaryData.length > 0) {
+        summaryData = _summaryData;
         productSummary = summaryData
           .map((p: any, idx: number) => {
             return `${idx + 1}. Name: "${p.name}"
@@ -467,35 +470,103 @@ ${contextBlock || 'No matching document context found.'}
 </context_documents>
 
 <context_products>
-${productContext || 'No matching product catalog items found.'}
+${productContext || (image_url ? 'User uploaded an image. Ignore this empty block and use the Product Summary List and provided Catalog Images to find the visual match.' : 'No matching product catalog items found.')}
 </context_products>`;
 
       // Call OpenAI GPT-4o-mini with optional visual input
       const userMessageContent: any[] = [
-        { type: 'text', text: `Answer only from the context:\n\n${message || "Find a product that resembles the uploaded picture."}` }
+        { type: 'text', text: `${image_url ? 'Look at the provided catalog images and Product Summary List to find the exact match for this image:\n\n' : 'Answer only from the context:\n\n'}${message || "Find a product that resembles the uploaded picture."}` }
       ];
 
       if (image_url) {
+        // 1. Add user uploaded image
+        userMessageContent.push({
+          type: 'text',
+          text: '--- USER UPLOADED IMAGE ---'
+        });
         userMessageContent.push({
           type: 'image_url',
-          image_url: {
-            url: image_url
-          }
+          image_url: { url: image_url, detail: 'high' }
         });
+
+        // 2. Add catalog images for 100% precise visual matching
+        if (topProducts && topProducts.length > 0) {
+          userMessageContent.push({
+            type: 'text',
+            text: '-- CATALOG IMAGES FOR VISUAL MATCHING (Find the 100% exact match) --'
+          });
+          topProducts.forEach((p: any) => {
+            if (p.image_url && p.image_url !== 'N/A') {
+              userMessageContent.push({
+                type: 'text',
+                text: `Catalog Product: ${p.name} (SKU: ${p.sku})`
+              });
+              const cleanUrl = p.image_url.trim().replace(/[\.\,]$/, '');
+              // Use an Image Proxy (wsrv.nl) to bypass Fabrilife/Cloudflare bot-protection
+              // This guarantees OpenAI won't hit a 400 Timeout when downloading the image.
+              const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(cleanUrl)}`;
+              userMessageContent.push({
+                type: 'image_url',
+                image_url: { url: proxyUrl, detail: 'auto' }
+              });
+            }
+          });
+        }
       }
 
-      const gptResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...formattedHistory,
-          { role: 'user', content: userMessageContent as any },
-        ] as any[],
-        temperature: 0.1, // Low temperature for high fidelity / strict factual alignment
-        max_tokens: 800,
-      });
+      let gptResponse;
+      let hasImageError = false;
+
+      try {
+        gptResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...formattedHistory,
+            { role: 'user', content: userMessageContent as any },
+          ] as any[],
+          temperature: 0.1, // Low temperature for high fidelity / strict factual alignment
+          max_tokens: 800,
+        });
+      } catch (error: any) {
+        console.error('OpenAI Primary Chat Error:', error);
+        
+        // If OpenAI fails because of a bad/timed-out image URL in the catalog, retry without catalog images!
+        if (error.status === 400 || error.message?.toLowerCase().includes('download') || error.message?.toLowerCase().includes('image')) {
+          console.log('Retrying without catalog images due to image download failure...');
+          hasImageError = true;
+          
+          const fallbackMessageContent: any[] = [
+            { type: 'text', text: `Answer only from the context:\n\n${message || "Find a product that resembles the uploaded picture."}` }
+          ];
+          if (image_url) {
+            fallbackMessageContent.push({
+              type: 'image_url',
+              image_url: { url: image_url, detail: 'high' }
+            });
+          }
+
+          gptResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...formattedHistory,
+              { role: 'user', content: fallbackMessageContent as any },
+            ] as any[],
+            temperature: 0.1,
+            max_tokens: 800,
+          });
+        } else {
+          throw error;
+        }
+      }
 
       responseText = gptResponse.choices[0]?.message?.content || "I couldn't find that information in your uploaded documents.";
+      
+      if (hasImageError) {
+        responseText += "\n\n*(⚠️ Note: Some of your catalog image links were broken or protected (e.g. Fabrilife), which timed out the AI. It fell back to text-search, which may be less accurate.)*";
+      }
+      
       responseText = stripMarkdownFormatting(responseText);
     }
 

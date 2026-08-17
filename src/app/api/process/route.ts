@@ -4,7 +4,7 @@ import { storage, isFirebaseConfigured } from '@/utils/firebase';
 import { getBatchEmbeddings, openai } from '@/utils/openai';
 import { parseDocument } from '@/utils/parsers';
 import { chunkText } from '@/utils/chunker';
-import { ref, getBytes } from 'firebase/storage';
+import { ref, getBytes, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow maximum serverless execution time for large files
@@ -78,6 +78,73 @@ export async function POST(req: NextRequest) {
     if (parsed.products && parsed.products.length > 0) {
       console.log(`Processing Catalog with ${parsed.products.length} products`);
       const productsToProcess = parsed.products.slice(0, 100);
+
+      // Enterprise Data Ingestion: Fetch and Host External Images to bypass Bot Protection
+      if (isFirebaseConfigured()) {
+        for (let item of productsToProcess) {
+          if (item.image_url && item.image_url.startsWith('http') && !item.image_url.includes('firebasestorage.googleapis.com')) {
+            try {
+              console.log(`Pre-fetching image for SKU ${item.sku}: ${item.image_url}`);
+              const response = await fetch(item.image_url, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+                }
+              });
+              if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                const fileExt = item.image_url.split('.').pop()?.split('?')[0]?.replace(/[^a-z0-9]/gi, '') || 'jpg';
+                const cleanExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt.toLowerCase()) ? fileExt.toLowerCase() : 'jpg';
+                const storagePath = `users/${userUid}/catalog_images/${Date.now()}_${item.sku}.${cleanExt}`;
+                const storageRef = ref(storage!, storagePath);
+                
+                await uploadBytes(storageRef, buffer, {
+                  contentType: `image/${cleanExt === 'jpg' ? 'jpeg' : cleanExt}`
+                });
+                
+                const downloadUrl = await getDownloadURL(storageRef);
+                console.log(`Successfully hosted image for SKU ${item.sku}: ${downloadUrl}`);
+                item.image_url = downloadUrl; // Mutate the object before insertion
+                
+                // Auto Image Captioning for Data Enrichment
+                try {
+                  console.log(`Extracting visual keywords for SKU ${item.sku}...`);
+                  if (openai) {
+                    const visionResponse = await openai.chat.completions.create({
+                      model: 'gpt-4o-mini',
+                      messages: [
+                        {
+                          role: 'user',
+                          content: [
+                            { type: 'text', text: 'Describe the product in this image using 5-15 comma-separated visual keywords (e.g. color, pattern, style, item type). Output ONLY the keywords.' },
+                            { type: 'image_url', image_url: { url: downloadUrl, detail: 'low' } }
+                          ] as any[]
+                        }
+                      ],
+                      max_tokens: 50,
+                      temperature: 0.1
+                    });
+                    const visualKeywords = visionResponse.choices[0]?.message?.content?.trim();
+                    if (visualKeywords) {
+                      item.description = item.description 
+                        ? `${item.description}. Visuals: ${visualKeywords}` 
+                        : `Visuals: ${visualKeywords}`;
+                      console.log(`Enriched SKU ${item.sku} with visuals: ${visualKeywords}`);
+                    }
+                  }
+                } catch (visionErr) {
+                  console.error(`Failed to caption image for SKU ${item.sku}:`, visionErr);
+                }
+              } else {
+                console.warn(`Failed to fetch image for SKU ${item.sku}. Status: ${response.status}`);
+              }
+            } catch (err) {
+              console.error(`Error pre-fetching image for SKU ${item.sku}:`, err);
+            }
+          }
+        }
+      }
 
       // Construct text representation for each product
       const textsToEmbed = productsToProcess.map((item: any) => {

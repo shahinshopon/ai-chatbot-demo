@@ -8,26 +8,19 @@ import {
   X,
   Send,
   Copy,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
-  Trash2,
-  HelpCircle,
-  Info,
   Terminal,
-  ArrowRight,
   Lock,
   Loader2,
-  Plus,
   MessageSquare,
   ExternalLink,
-  ShoppingBag,
   Camera,
   Mic,
   StopCircle,
   Download,
   Maximize2,
-  ZoomIn
+  Trash2
 } from 'lucide-react';
 import { getAnonymousUser, isFirebaseConfigured, storage } from '@/utils/firebase';
 import { ref, uploadBytes } from 'firebase/storage';
@@ -408,6 +401,28 @@ export default function Home() {
     }
   }, [files, isSimulatedMode]);
 
+  // Load chat history from localStorage on initialization
+  useEffect(() => {
+    if (userUid && typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`knowledgechat_history_${userUid}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setMessages(parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
+        } catch (e) {
+          console.error('Failed to parse chat history', e);
+        }
+      }
+    }
+  }, [userUid]);
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    if (userUid && typeof window !== 'undefined' && messages.length > 0) {
+      localStorage.setItem(`knowledgechat_history_${userUid}`, JSON.stringify(messages));
+    }
+  }, [messages, userUid]);
+
 
   // Safe response JSON parser to prevent HTML syntax errors when hosted server returns non-JSON pages
   const safeParseResponse = async <T = any>(res: Response, defaultError: string): Promise<T> => {
@@ -728,6 +743,23 @@ export default function Home() {
 
     if (chatImageInputRef.current) {
       chatImageInputRef.current.value = '';
+    }
+  };
+
+  const handleClearChat = () => {
+    if (confirm('Are you sure you want to clear the conversation?')) {
+      const defaultWelcome: Message[] = [
+        {
+          id: 'welcome',
+          role: 'assistant',
+          text: "Hello! I am your isolated business knowledge assistant. Upload your documents (PDF, DOCX, TXT) above and wait for indexing. I will answer only using facts found inside your files.",
+          timestamp: new Date(),
+        }
+      ];
+      setMessages(defaultWelcome);
+      if (userUid) {
+        localStorage.removeItem(`knowledgechat_history_${userUid}`);
+      }
     }
   };
 
@@ -1114,11 +1146,13 @@ export default function Home() {
               </div>
             </div>
             
-            {/* <div className="flex items-center gap-3">
-              <span className="text-[10px] font-mono bg-indigo-950/40 border border-indigo-900/30 text-indigo-400 px-2.5 py-1 rounded-md">
-                GPT-4o-mini
-              </span>
-            </div> */}
+            <button
+              onClick={handleClearChat}
+              className="p-1.5 md:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors group/clear"
+              title="Clear conversation"
+            >
+              <Trash2 className="w-4 h-4 md:w-5 md:h-5 transition-transform group-hover/clear:scale-110" />
+            </button>
           </div>
 
           {/* Message List Panel */}
