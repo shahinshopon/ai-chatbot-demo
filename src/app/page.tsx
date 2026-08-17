@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import {
   UploadCloud,
   FileText,
@@ -20,7 +21,8 @@ import {
   StopCircle,
   Download,
   Maximize2,
-  Trash2
+  Trash2,
+  Database
 } from 'lucide-react';
 import { getAnonymousUser, isFirebaseConfigured, storage } from '@/utils/firebase';
 import { ref, uploadBytes } from 'firebase/storage';
@@ -1017,119 +1019,20 @@ export default function Home() {
             </motion.p>
           </div>
 
-          {/* Drag & Drop Upload Container */}
+          {/* Drag & Drop Upload Container (Moved to Admin Dashboard) */}
           <div className="space-y-4 flex-1 flex flex-col">
-            <div
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`glow-border cursor-pointer relative p-8 md:p-10 rounded-2xl border border-dashed transition-all duration-300 flex flex-col items-center justify-center gap-4 text-center glass-panel glass-panel-hover ${
-                dragActive
-                  ? 'border-violet-500 bg-violet-950/10 scale-[1.01]'
-                  : 'border-slate-300 bg-white/30'
-              }`}
+            <Link
+              href="/admin"
+              className="glow-border cursor-pointer relative p-8 md:p-10 rounded-2xl border border-dashed transition-all duration-300 flex flex-col items-center justify-center gap-4 text-center glass-panel glass-panel-hover border-violet-300 bg-white/30"
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.docx,.txt,.csv,.json,.xlsx"
-                onChange={handleFileInput}
-                className="hidden"
-              />
-              <div className="p-4 bg-slate-100/80 border border-slate-300 rounded-full shadow-lg text-violet-400 shadow-violet-950/20 group-hover:scale-110 transition-transform">
-                <UploadCloud className="w-8 h-8 animate-pulse" />
+              <div className="p-4 bg-violet-100 border border-violet-300 rounded-full shadow-lg text-violet-600 shadow-violet-950/20 group-hover:scale-110 transition-transform">
+                <Database className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-slate-900 font-medium text-sm">Drag & drop files or click to upload</h3>
-                <p className="text-slate-500 text-xs mt-1.5">Supports PDF, DOCX, TXT, CSV, JSON (Max 50 files, up to 20MB each)</p>
+                <h3 className="text-slate-900 font-bold text-lg">Admin Dashboard</h3>
+                <p className="text-slate-500 text-xs mt-1.5">Manage Knowledge Base & Upload Catalogs</p>
               </div>
-            </div>
-
-            {/* Error Notifications */}
-            <AnimatePresence>
-              {validationError && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="bg-rose-950/40 border border-rose-900/30 rounded-xl p-3.5 flex items-start gap-3 text-rose-300 text-xs"
-                >
-                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold block mb-0.5">Validation Alert</span>
-                    {validationError}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Uploaded Files Queue Section */}
-            <div className="flex-1 max-h-[250px] overflow-y-auto space-y-3 pr-2 scrollbar">
-              <AnimatePresence>
-                {files.map((file) => (
-                  <motion.div
-                    key={file.id}
-                    initial={{ opacity: 0, x: -15 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 15 }}
-                    className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-white/70 backdrop-blur-sm group hover:border-slate-300 transition-colors"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="p-2 bg-slate-100 border border-slate-300 rounded-lg text-slate-600 group-hover:text-indigo-400 transition-colors flex-shrink-0">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-slate-800 text-xs font-semibold truncate pr-2" title={file.name}>
-                          {file.name}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-slate-500 font-mono">{formatBytes(file.size)}</span>
-                          <span className="text-[10px] text-slate-500">•</span>
-                          <span className="text-[10px] text-slate-600 flex items-center gap-1">
-                            {renderStatusBadge(file.status)}
-                            {file.status === 'indexing' ? (
-                              <span>Indexing... <span className="text-indigo-400 font-mono ml-0.5">{file.progress}%</span></span>
-                            ) : (
-                              getStatusText(file.status)
-                            )}
-                          </span>
-                        </div>
-                        {/* Display subtle upload progress line */}
-                        {file.status !== 'ready' && file.status !== 'failed' && (
-                          <div className="w-full bg-slate-100 h-1 rounded-full mt-2 overflow-hidden">
-                            <motion.div
-                              className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full"
-                              initial={{ width: 0 }}
-                              animate={{ width: `${file.progress}%` }}
-                              transition={{ duration: 0.3 }}
-                            />
-                          </div>
-                        )}
-                        {file.status === 'failed' && (
-                          <p className="text-[10px] text-rose-600 mt-1">{file.errorMessage || 'Unknown extraction error'}</p>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteFile(file)}
-                      className="p-1.5 rounded-md hover:bg-slate-100 border border-transparent hover:border-slate-300 text-slate-500 hover:text-rose-600 transition-all flex-shrink-0 ml-2"
-                      title="Delete document"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {files.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center py-10 border border-dashed border-slate-200 rounded-xl bg-slate-100/50">
-                  <p className="text-xs text-slate-500">No documents added to current knowledge base.</p>
-                </div>
-              )}
-            </div>
+            </Link>
           </div>
         </section>
 
@@ -1223,7 +1126,7 @@ export default function Home() {
                         </div>
 
                         {/* Source citations rendering */}
-                        {/* {msg.sources && msg.sources.length > 0 && (
+                        {msg.sources && msg.sources.length > 0 && (
                           <div className="mt-3.5 pt-3 border-t border-slate-300/80 flex flex-col gap-1.5">
                             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                               References Used ({msg.sources.length})
@@ -1242,7 +1145,7 @@ export default function Home() {
                               ))}
                             </div>
                           </div>
-                        )} */}
+                        )}
 
                         <span suppressHydrationWarning className={`text-[9px] self-end font-mono -mt-2 ${msg.role === 'user' ? 'text-slate-400' : 'text-slate-500'}`}>
                           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

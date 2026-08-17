@@ -73,12 +73,12 @@ export async function POST(req: NextRequest) {
       let sources: Array<{ filename: string; page?: number }> = [];
 
       if (image_url) {
-        responseText = "Yes! I matched your uploaded product image with a catalog match for our **Horizon Red Running Shoes**.\n\n* **SKU**: HRZ-9921\n* **Price**: $45.00 USD\n* **In Stock**: Yes (12 units available)\n* **Color**: Vibrant Red / White accents\n* **Description**: High-performance breathable mesh running shoe featuring reactive cushioning and reinforced heels for maximum comfort.\n\nHere is the product card for quick access:\n\n[![Horizon Red Running Shoes](https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop)](https://example.com/products/horizon-red-running-shoes)";
+        responseText = "Yes! I matched your uploaded product image with a catalog match for our **Horizon Red Running Shoes**.\n\n* **SKU**: HRZ-9921\n* **Price**: 45.00 USD\n* **In Stock**: Yes (12 units available)\n* **Color**: Vibrant Red / White accents\n* **Description**: High-performance breathable mesh running shoe featuring reactive cushioning and reinforced heels for maximum comfort.\n\nHere is the product card for quick access:\n\n[![Horizon Red Running Shoes](https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop)](https://example.com/products/horizon-red-running-shoes)";
         sources = [{ filename: 'shoes_and_shirts_catalog.csv' }];
       } else if (lowercaseMsg.includes('hello') || lowercaseMsg.includes('hi') || lowercaseMsg.includes('hey')) {
         responseText = "Hello! I am your isolated business knowledge assistant. Upload your documents (PDF, DOCX, TXT) and ask me anything about them. I will answer only using your uploaded knowledge.";
       } else if (lowercaseMsg.includes('pricing') || lowercaseMsg.includes('price') || lowercaseMsg.includes('cost')) {
-        responseText = "According to your uploaded pricing guide:\n\n- **Starter Plan**: $49/month (includes 5 team members, 10GB storage)\n- **Professional Plan**: $99/month (includes 20 team members, 50GB storage, priority support)\n- **Enterprise Plan**: Custom pricing (unlimited resources, dedicated account manager)\n\nAll plans include standard isolated data compliance.";
+        responseText = "According to your uploaded pricing guide:\n\n- **Starter Plan**: 49 USD/month (includes 5 team members, 10GB storage)\n- **Professional Plan**: 99 USD/month (includes 20 team members, 50GB storage, priority support)\n- **Enterprise Plan**: Custom pricing (unlimited resources, dedicated account manager)\n\nAll plans include standard isolated data compliance.";
         sources = [{ filename: 'pricing_structure.pdf', page: 2 }];
       } else if (lowercaseMsg.includes('service') || lowercaseMsg.includes('features') || lowercaseMsg.includes('capabilities')) {
         responseText = "Your uploaded company profile document states that we provide the following enterprise services:\n\n1. **AI-Driven Data Analytics**: Instantly extract intelligence from unstructured records.\n2. **Custom Cloud Infrastructure**: High-performance, low-latency private cloud deployments.\n3. **Cybersecurity Audits**: Continuous vulnerability scans and full RAG standard data compliance verification.";
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
         responseText = "Based on the internal support directory, you can contact our technical assistance team at **support@knowledgechat.ai** or call **+1 (555) 019-2834** during standard operational hours (9 AM - 6 PM EST).";
         sources = [{ filename: 'internal_faq.txt' }];
       } else if (lowercaseMsg.includes('shoe') || lowercaseMsg.includes('running') || lowercaseMsg.includes('sneaker')) {
-        responseText = "Yes! I found a match in your uploaded product catalog for **Horizon Red Running Shoes**.\n\n* **SKU**: HRZ-9921\n* **Price**: $45.00 USD\n* **In Stock**: Yes (12 units available)\n* **Color**: Vibrant Red / White accents\n* **Description**: High-performance breathable mesh running shoe featuring reactive cushioning and reinforced heels for maximum comfort.\n\nHere is the product card for quick access:\n\n[![Horizon Red Running Shoes](https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop)](https://example.com/products/horizon-red-running-shoes)";
+        responseText = "Yes! I found a match in your uploaded product catalog for **Horizon Red Running Shoes**.\n\n* **SKU**: HRZ-9921\n* **Price**: 45.00 USD\n* **In Stock**: Yes (12 units available)\n* **Color**: Vibrant Red / White accents\n* **Description**: High-performance breathable mesh running shoe featuring reactive cushioning and reinforced heels for maximum comfort.\n\nHere is the product card for quick access:\n\n[![Horizon Red Running Shoes](https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop)](https://example.com/products/horizon-red-running-shoes)";
         sources = [{ filename: 'shoes_and_shirts_catalog.csv' }];
       }
 
@@ -453,6 +453,7 @@ Strict Rules:
    - 03/09/24 = 03/09/2024 = 2024-09-03 = 9th March 2024 (all refer to the same date)
    - DD/MM/YY format is used in the documents. When user asks about a date, find matching records regardless of whether they use 2-digit or 4-digit year format.
    - Always show results for the requested date even if the format differs (e.g., if they ask "03/09/2024" and you have "03/09/24" in your data, include those results).
+10. Price Formatting Rule: NEVER use the '$' symbol when displaying prices. Only output the numeric value followed by the currency code (e.g., '649 USD' or '649 BDT').
 
 ${languageInstructions}
 

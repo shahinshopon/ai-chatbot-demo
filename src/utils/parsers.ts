@@ -379,9 +379,16 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
     const sku = skuIdx !== -1 && row[skuIdx] ? row[skuIdx] : `SKU-${1000 + i}`;
     
     let price = 0;
+    let currency: string | undefined = undefined;
     if (priceIdx !== -1 && row[priceIdx]) {
-      const parsedPrice = parseFloat(row[priceIdx].replace(/[^0-9.]/g, ''));
+      const priceText = row[priceIdx].trim();
+      const parsedPrice = parseFloat(priceText.replace(/[^0-9.]/g, ''));
       if (!isNaN(parsedPrice)) price = parsedPrice;
+      
+      const textOnly = priceText.replace(/[0-9.,$-]/g, '').trim().toUpperCase();
+      if (textOnly && textOnly.length >= 2 && textOnly.length <= 4) {
+        currency = textOnly;
+      }
     }
 
     const category = categoryIdx !== -1 && row[categoryIdx] ? row[categoryIdx] : undefined;
@@ -413,7 +420,7 @@ async function parseCsv(buffer: Buffer): Promise<ParsedDocument> {
     const product_url = urlIdx !== -1 && row[urlIdx] ? row[urlIdx] : undefined;
 
     products.push({
-      sku, name, price, currency: undefined, category, color, size, inStock, description: finalDescription, image_url, product_url,
+      sku, name, price, currency, category, color, size, inStock, description: finalDescription, image_url, product_url,
     });
 
     summaryText += `Product: ${name} (SKU: ${sku}) | Price: ${price} | Category: ${category || 'None'} | Description: ${finalDescription || 'No description'}\n`;

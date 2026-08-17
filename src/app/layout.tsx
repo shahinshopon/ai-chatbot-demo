@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { UploadProvider } from '@/components/UploadContext';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -33,7 +34,11 @@ export default function RootLayout({
       lang="en"
       className={`h-full antialiased ${plusJakarta.variable}`}
     >
-      <body className={`min-h-full flex flex-col overflow-x-hidden ${plusJakarta.className}`}>{children}</body>
+      <body className={`min-h-full flex flex-col overflow-x-hidden ${plusJakarta.className}`}>
+        <UploadProvider>
+          {children}
+        </UploadProvider>
+      </body>
     </html>
   );
 }
